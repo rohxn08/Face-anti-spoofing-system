@@ -1,24 +1,61 @@
-# Ignore processed data
-data/processed/
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Ignore big files
+# Virtual environments
+env/
+venv/
+.venv/
+
+# IDEs and editors
+.vscode/
+.idea/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Data
+/data/processed/      # ignore only processed images
+!/data/msu_mfsd/      # track raw dataset
+
+# Models (ignore weights/checkpoints)
+/models/weights/
+/models/checkpoints/
+*.pt
+*.pth
+*.h5
+*.ckpt
+
+# Raw media and archives
 *.mp4
 *.mov
 *.avi
+*.mkv
 *.zip
+*.tar
+*.tar.gz
+*.tgz
 
-# Python cache
-__pycache__/
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+# Environment / secrets
+.env
+.env.*
+credentials.json
+secrets.json
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Misc
 *.pyc
-*.pyo
-
-# Virtual environment
-venv/
-env/
-
-# Jupyter checkpoints
-.ipynb_checkpoints/
-
-# IDE files
-.vscode/
-*.idea/
+*~
+*.swp
+*.bak
+*.tmp
