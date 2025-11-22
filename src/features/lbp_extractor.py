@@ -37,9 +37,13 @@ class LBPExtractor:
 
                 lbp_image[i, j] = lbp_value
 
-        # Yeto normalize the histogram and apply binnign process
-        hist, _ = np.histogram(lbp.ravel(), bins=256, range=(0, 256))
-        hist = hist.astype(float) / hist.sum() 
+        
+        hist, _ = np.histogram(lbp_image.ravel(), bins=256, range=(0, 256))
+        
+        # Normalize histogram
+        hist = hist.astype("float")
+        hist /= (hist.sum() + 1e-7)
+
        
 
         return hist
