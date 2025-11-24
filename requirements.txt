@@ -1,7 +1,7 @@
-scikit-image
-scikit-learn
-opencv-python
-joblib
 numpy
-cv2
-pandas
+opencv-python
+scikit-learn
+matplotlib
+joblib
+imutils
+streamlit

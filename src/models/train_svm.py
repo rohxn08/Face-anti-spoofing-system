@@ -43,7 +43,18 @@ def train_model(x,y):
     
 def predict(model,xte,yte):
     y_preds=model.predict(xte)
+    
     return y_preds
+
+if __name__=="__main__":
+    x, y = preprocessing(real_dir, attack_dir)
+    model, xte, yte = train_model(x, y)
+    y_preds = predict(model, xte, yte)
+    print("Accuracy:", accuracy_score(yte, y_preds))
+    print("Precision:", precision_score(yte, y_preds))
+    print("Recall:", recall_score(yte, y_preds))
+    print("F1 Score:", f1_score(yte, y_preds))
+    
     
     
     
