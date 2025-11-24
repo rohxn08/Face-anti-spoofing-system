@@ -6,6 +6,7 @@ import numpy as np
 import os
 from src.features.lbp_extractor import LBPExtractor
 import cv2
+from sklearn.preprocessing import StandardScaler
 
 
 dir=r"data\MSU-MFSD\pics"
@@ -34,8 +35,10 @@ def preprocessing(real_dir,attack_dir):
     
 
 def train_model(x,y):
-    xtr,xte,ytr,yte=train_test_split(x,y,test_size=0.2,random_state=42)
-    model=svm.SVC(kernel='rbf')
+    scaler=StandardScaler()
+    xsca=scaler.fit_transform(x)
+    xtr,xte,ytr,yte=train_test_split(xsca,y,test_size=0.2,random_state=42)
+    model=svm.SVC(kernel='rbf',class_weight='balanced')
     model.fit(xtr,ytr)
     
     return model,xte,yte
