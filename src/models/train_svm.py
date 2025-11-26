@@ -11,17 +11,10 @@ from sklearn.model_selection import GridSearchCV
 from src.preprocessing.preprocess import load_data_from_dirs
 
 
-dir=r"data\MSU-MFSD\pics"
+
 attack_dir=r"data\MSU-MFSD\pics\attack"
 real_dir=r"data\MSU-MFSD\pics\real"
 extractor=LBPExtractor()
-
-
-
-    
-                
-                    
-    
 
 def train_model(x,y):
     scaler=StandardScaler()
