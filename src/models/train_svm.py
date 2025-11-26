@@ -16,7 +16,6 @@ attack_dir=r"data\MSU-MFSD\pics\attack"
 real_dir=r"data\MSU-MFSD\pics\real"
 extractor=LBPExtractor()
 
-x,y=load_data_from_dirs(real_dir,attack_dir)
 
 
     
@@ -46,7 +45,8 @@ def predict(model,xte,yte):
     return y_preds
 
 if __name__=="__main__":
-    x, y = preprocessing(real_dir, attack_dir)
+    x,y=load_data_from_dirs(real_dir,attack_dir)
+
     model,scaler, xte, yte = train_model(x, y)
     y_preds = predict(model, xte, yte)
     print("Accuracy:", accuracy_score(yte, y_preds))
