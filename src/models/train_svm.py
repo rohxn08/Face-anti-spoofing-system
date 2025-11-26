@@ -8,29 +8,18 @@ from src.features.lbp_extractor import LBPExtractor
 import cv2
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
+from src.preprocessing.preprocess import load_data_from_dirs
 
 
 dir=r"data\MSU-MFSD\pics"
 attack_dir=r"data\MSU-MFSD\pics\attack"
 real_dir=r"data\MSU-MFSD\pics\real"
 extractor=LBPExtractor()
-def preprocessing(real_dir,attack_dir):
-    x=[]
-    y=[]
-    for f in os.listdir(real_dir):
-        if f.lower().endswith((".jpg",".png")):
-            img=cv2.imread(os.path.join(real_dir,f))
-            if img is not None:
-                x.append(extractor.extract(img))
-                y.append(1)
-                    
-    for g in os.listdir(attack_dir):
-        if g.lower().endswith((".jpg",".png")):
-            img=cv2.imread(os.path.join(attack_dir,g))
-            if img is not None:
-                x.append(extractor.extract(img))
-                y.append(0)
-    return np.array(x),np.array(y)
+
+x,y=load_data_from_dirs(real_dir,attack_dir)
+
+
+    
                 
                     
     
@@ -39,7 +28,7 @@ def train_model(x,y):
     scaler=StandardScaler()
     xsca=scaler.fit_transform(x)
     xtr,xte,ytr,yte=train_test_split(xsca,y,test_size=0.2,random_state=42)
-    xte=scaler.fit_transform(xte)
+    xte=scaler.transform(xte)
     param_grid={"C":[0.1,1,10,100],
                 "gamma":["scale","auto",0.01,0.001],
                 "kernel":["rbf"]}
@@ -64,8 +53,3 @@ if __name__=="__main__":
     print("Precision:", precision_score(yte, y_preds))
     print("Recall:", recall_score(yte, y_preds))
     print("F1 Score:", f1_score(yte, y_preds))
-    
-    
-    
-    
-    
