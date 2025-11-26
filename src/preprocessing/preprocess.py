@@ -9,16 +9,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.features.lbp_extractor import LBPExtractor
 
 def load_data(data_dir, sub_list_file):
-    """
-    Load data from the dataset directory based on the subject list file.
-    
-    Args:
-        data_dir (str): Path to the data directory (e.g., .../MSU-MFSD)
-        sub_list_file (str): Path to the subject list file (e.g., train_sub_list.txt)
-        
-    Returns:
-        tuple: (X, y) where X is the array of features/images and y is the array of labels
-    """
+    face_cascade=cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
     with open(sub_list_file, 'r') as f:
         subjects = [line.strip() for line in f.readlines()]
     
@@ -52,9 +43,18 @@ def load_data(data_dir, sub_list_file):
                             img_path = os.path.join(real_dir, filename)
                             img = cv2.imread(img_path)
                             if img is not None:
-                                hist = extractor.extract(img)
-                                X.append(hist)
-                                y.append(1) # 1 for Real
+                                gray_img=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+                                faces=face_cascade.detectMultiScale(gray_img,1.1,4)
+                                if len(faces)>0:
+                                    (x,y,w,h)=faces[0]
+                                    face_img=img[y:y+h,x:x+w]
+                                    face_img=cv2.resize(face_img,(128,128))
+                                    hist = extractor.extract(face_img)
+                                    X.append(hist)
+                                    y.append(1)
+                                else:
+                                    continue
+                            
                     except ValueError:
                         continue
     
@@ -73,9 +73,18 @@ def load_data(data_dir, sub_list_file):
                             img_path = os.path.join(attack_dir, filename)
                             img = cv2.imread(img_path)
                             if img is not None:
-                                hist = extractor.extract(img)
-                                X.append(hist)
-                                y.append(0) # 0 for Attack
+                                gray_img=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+                                faces=face_cascade.detectMultiScale(gray_img,1.1,4)
+                                if len(faces)>0:
+                                    (x,y,w,h)=faces[0]
+                                    face_img=img[y:y+h,x:x+w]
+                                    face_img=cv2.resize(face_img,(128,128))
+
+                                    hist = extractor.extract(face_img)
+                                    X.append(hist)
+                                    y.append(0)
+                                else:
+                                    continue 
                     except ValueError:
                         continue
                         
