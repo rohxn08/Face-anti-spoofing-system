@@ -8,6 +8,7 @@ import cv2
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
 import sys
+import joblib
 
 # Add src to path to import modules if running from root
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -64,3 +65,9 @@ if __name__ == "__main__":
         print("Recall:", recall_score(yte, y_preds))
         print("F1 Score:", f1_score(yte, y_preds))
         print("-" * 30)
+
+        # Save model and scaler
+        os.makedirs('models', exist_ok=True)
+        joblib.dump(model, 'models/svm_face_antispoofing.pkl')
+        joblib.dump(scaler, 'models/scaler.pkl')
+        print("Model and scaler saved to 'models/' directory.")
