@@ -56,6 +56,8 @@ while True:
     cv2.putText(frame, label_text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
     
     cv2.imshow("Real-time Anti-Spoofing", frame)
+    if face is not None:
+        cv2.imshow("Debug Crop", face)
     
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
