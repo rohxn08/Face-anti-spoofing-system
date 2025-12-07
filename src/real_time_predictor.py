@@ -23,12 +23,18 @@ extractor = LBPExtractor()
 
 cap = cv2.VideoCapture(0)
 
+from collections import deque
+from scipy.stats import mode
+
+
+history_length = 15
+prediction_history = deque(maxlen=history_length)
+
 while True:
     ret, frame = cap.read()
     if not ret:
         break
 
-   
     face, bbox = preprocess_face(frame)
     
     label_text = "No Face Detected"
@@ -41,14 +47,28 @@ while True:
             feat = feat.reshape(1, -1)
             feat_scaled = scaler.transform(feat)
             
-            prediction = model.predict(feat_scaled)
+           
+            current_pred = model.predict(feat_scaled)[0]
             
-            if prediction[0] == 1:
+          
+            prediction_history.append(current_pred)
+            
+           
+          
+            real_votes = sum(prediction_history)
+            
+          
+            if real_votes > (len(prediction_history) / 2):
+                final_prediction = 1 # Real
                 label_text = "Real"
-                color = (0, 255, 0) 
+                color = (0, 255, 0)
             else:
+                final_prediction = 0 # Spoof
                 label_text = "Spoof"
-                color = (0, 0, 255) 
+                color = (0, 0, 255)
+                
+          
+
         except Exception as e:
             print(f"Prediction error: {e}")
             label_text = "Error"
@@ -58,6 +78,10 @@ while True:
         cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
         cv2.putText(frame, label_text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
     
+    else:
+        # Clear history if face is lost, so it doesn't carry over old votes
+        prediction_history.clear()
+
     # Show frame
     cv2.imshow("Real-time Anti-Spoofing", frame)
     if face is not None:
