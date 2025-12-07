@@ -29,12 +29,13 @@ while True:
         break
 
    
-    face = preprocess_face(frame)
+    face, bbox = preprocess_face(frame)
     
     label_text = "No Face Detected"
     color = (0, 255, 255) 
 
     if face is not None:
+        x, y, w, h = bbox
         try:
             feat = extractor.extract(face)
             feat = feat.reshape(1, -1)
@@ -53,8 +54,11 @@ while True:
             label_text = "Error"
             color = (0, 255, 255)
 
-    cv2.putText(frame, label_text, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+        # Draw bounding box and label
+        cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+        cv2.putText(frame, label_text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
     
+    # Show frame
     cv2.imshow("Real-time Anti-Spoofing", frame)
     if face is not None:
         cv2.imshow("Debug Crop", face)

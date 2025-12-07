@@ -49,11 +49,11 @@ def load_data_from_dirs(real_dir, attack_dir):
 
     return np.array(X), np.array(y)
 
+# Face detection model loaded once to improve performance
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
 def preprocess_face(image_or_path, target_size=(128, 128)):
-    """
-    Detects, crops, and resizes a face from an input image.
-    Returns the processed face image ready for feature extraction.
-    """
+    
     # Load image if path is given
     if isinstance(image_or_path, str):
         img = cv2.imread(image_or_path)
@@ -63,23 +63,23 @@ def preprocess_face(image_or_path, target_size=(128, 128)):
         img = image_or_path
 
     if img is None:
-        return None
+        return None, None
 
-    # Face detection
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    # Use the global face_cascade
     faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
     if len(faces) == 0:
         # No face found
-        return None
+        return None, None
     
     # Find largest face
     largest_face = max(faces, key=lambda rect: rect[2] * rect[3])
     x, y, w, h = largest_face
     
     # Add a small margin (optional but recommended)
-    margin = int(0.1 * w)
+    margin = 0
     x_start = max(0, x - margin)
     y_start = max(0, y - margin)
     x_end = min(img.shape[1], x + w + margin)
@@ -90,7 +90,7 @@ def preprocess_face(image_or_path, target_size=(128, 128)):
     # Resize
     try:
         face_resized = cv2.resize(face_img, target_size)
-        return face_resized
+        return face_resized, (x, y, w, h)
     except Exception as e:
         print(f"Error resizing face: {e}")
-        return None
+        return None, None

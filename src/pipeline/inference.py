@@ -35,7 +35,7 @@ class FaceAntiSpoofingSystem:
             return {"error": "Model not loaded"}
 
         # Preprocess the face (Detect -> Crop -> Resize)
-        processed_face = preprocess_face(image_path_or_array)
+        processed_face, _ = preprocess_face(image_path_or_array)
         
         if processed_face is None:
             return {"error": "No face detected"}
