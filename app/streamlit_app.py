@@ -143,7 +143,7 @@ if input_mode == "Upload Image":
         image_pil = Image.open(uploaded_file)
         
         with col1:
-            st.image(image_pil, caption="Uploaded Image", use_column_width=True)
+            st.image(image_pil, caption="Uploaded Image", use_container_width=True)
             
         with col2:
             st.write("#### Analysis Result")
@@ -167,7 +167,7 @@ if input_mode == "Upload Image":
                         color_rgb = (color[2], color[1], color[0]) 
                         cv2.rectangle(image_vis, (x, y), (x+w, y+h), color_rgb, 4)
                         
-                        st.image(image_vis, caption="Detected Face", use_column_width=True)
+                        st.image(image_vis, caption="Detected Face", use_container_width=True)
                         
                         # Display Card
                         is_real = "REAL" in label
@@ -221,7 +221,7 @@ elif input_mode == "Live Prediction (Webcam)":
                 
                 # Convert BGR to RGB for Streamlit
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                st_frame.image(frame_rgb, channels="RGB", use_column_width=True)
+                st_frame.image(frame_rgb, channels="RGB", use_container_width=True)
             
             cap.release()
     else:

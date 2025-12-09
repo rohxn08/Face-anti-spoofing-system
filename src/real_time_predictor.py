@@ -6,6 +6,7 @@ import sys
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import img_to_array
+from collections import deque
 
 # Ensure project root is in path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -24,6 +25,9 @@ class RealTimePredictor:
         self.scaler = None
         self.extractor = None
         self.base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models'))
+        
+        # --- VOTING HISTORY ---
+        self.history = deque(maxlen=10) # Store last 10 predictions
 
         self._load_model()
         
@@ -52,9 +56,13 @@ class RealTimePredictor:
         else:
             raise ValueError("Invalid model_type. Choose 'svm' or 'cnn'.")
 
+    def reset_history(self):
+        """Reset the voting history when switching users or contexts."""
+        self.history.clear()
+
     def predict(self, frame):
         """
-        Predicts if a face in the frame is Real or Spoof.
+        Predicts if a face in the frame is Real or Spoof using VOTING.
         Returns: 
             (label_text, color, bbox)
             label_text: "Real (0.99)" or "Spoof (0.99)"
@@ -65,10 +73,11 @@ class RealTimePredictor:
         face, bbox = preprocess_face(frame, target_size=(128, 128))
         
         if face is None:
+            self.history.clear() # Reset if face is lost
             return "No Face", (0, 255, 255), None
 
-        score = 0
-        is_real = False
+        raw_score = 0
+        is_real_frame = False # Prediction for THIS specific frame
         
         try:
             if self.model_type == 'svm':
@@ -76,16 +85,16 @@ class RealTimePredictor:
                 feat = self.extractor.extract(face)
                 feat = feat.reshape(1, -1)
                 feat_scaled = self.scaler.transform(feat)
-                prediction = self.model.predict(feat_scaled)[0] # 1=Real, 0=Spoof (Usually)
+                prediction = self.model.predict(feat_scaled)[0] # 1=Real, 0=Spoof
                 
-                # SVM predict usually returns class label directly
-                is_real = (prediction == 1)
-                score = 1.0 # SVM doesn't give probability easily with predict(), use predict_proba if needed
+                is_real_frame = (prediction == 1)
                 
-                # Try getting probability if available
+                # Confidence workaround for SVM
                 if hasattr(self.model, "predict_proba"):
                     probs = self.model.predict_proba(feat_scaled)[0]
-                    score = probs[1] if is_real else probs[0]
+                    raw_score = probs[1] if is_real_frame else probs[0]
+                else:
+                    raw_score = 1.0
 
             elif self.model_type == 'cnn':
                 # --- CNN LOGIC ---
@@ -94,22 +103,32 @@ class RealTimePredictor:
                 img = np.expand_dims(img, axis=0)
                 
                 # Predict gives probability of Class 1 (Imposter)
-                raw_score = self.model.predict(img, verbose=0)[0][0]
+                cnn_score = self.model.predict(img, verbose=0)[0][0]
                 
                 # Logic: < 0.5 is Real (Client), > 0.5 is Spoof (Imposter)
-                if raw_score < 0.5:
-                    is_real = True
-                    score = 1.0 - raw_score # Confidence in being Real
+                if cnn_score < 0.5:
+                    is_real_frame = True
+                    raw_score = 1.0 - cnn_score
                 else:
-                    is_real = False
-                    score = raw_score # Confidence in being Spoof
+                    is_real_frame = False
+                    raw_score = cnn_score
 
+            # --- VOTING LOGIC ---
+            # Append 1 for Real, 0 for Spoof
+            self.history.append(1 if is_real_frame else 0)
+            
+            # Calculate average vote
+            avg_vote = sum(self.history) / len(self.history)
+            
+            # Threshold > 0.5 means Majority say Real
+            is_real_final = (avg_vote > 0.5)
+            
             # --- FORMAT OUTPUT ---
-            if is_real:
-                label = f"REAL ({score:.2f})"
+            if is_real_final:
+                label = f"REAL ({raw_score:.2f})"
                 color = (0, 255, 0) # Green
             else:
-                label = f"SPOOF ({score:.2f})"
+                label = f"SPOOF ({raw_score:.2f})"
                 color = (0, 0, 255) # Red
                 
             return label, color, bbox
