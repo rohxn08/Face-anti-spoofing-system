@@ -4,7 +4,10 @@ import numpy as np
 import os
 import sys
 import tensorflow as tf
-from tensorflow.keras.models import load_model
+from tensorflow.keras.models import load_model, Sequential
+from tensorflow.keras.layers import Input, Lambda, GlobalAveragePooling2D, Dropout, Dense
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 from tensorflow.keras.preprocessing.image import img_to_array
 from collections import deque
 
@@ -32,29 +35,43 @@ class RealTimePredictor:
         self._load_model()
         
     def _load_model(self):
+        print(f"DEBUG: Initializing {self.model_type.upper()} model...")
+        
         if self.model_type == 'svm':
             try:
                 svm_path = os.path.join(self.base_path, 'svm_face_antispoofing.pkl')
                 scaler_path = os.path.join(self.base_path, 'scaler.pkl')
                 
+                if not os.path.exists(svm_path):
+                    raise FileNotFoundError(f"SVM model not found at {svm_path}")
+                
                 print(f"Loading SVM from {svm_path}")
                 self.model = joblib.load(svm_path)
                 self.scaler = joblib.load(scaler_path)
                 self.extractor = LBPExtractor()
-                print("✅ SVM Model Loaded")
+                print("✅ SVM Model Loaded Successfully")
             except Exception as e:
                 print(f"❌ Error loading SVM: {e}")
+                self.model = None
                 
         elif self.model_type == 'cnn':
+            cnn_path = os.path.join(self.base_path, 'face_antispoofing_model.h5')
+            if not os.path.exists(cnn_path):
+                raise FileNotFoundError(f"CRITICAL: Model file missing at {cnn_path}")
+
             try:
-                cnn_path = os.path.join(self.base_path, 'face_antispoofing_model.h5')
-                print(f"Loading CNN from {cnn_path}")
-                self.model = load_model(cnn_path)
-                print("✅ CNN Model Loaded")
+                print("DEBUG: Loading CNN with standard load_model...")
+                # Use compile=False to avoid optimizer and graph version issues
+                self.model = load_model(cnn_path, custom_objects={'preprocess_input': preprocess_input}, compile=False)
+                print("✅ CNN Model Loaded Successfully")
             except Exception as e:
-                print(f"❌ Error loading CNN: {e}")
-        else:
-            raise ValueError("Invalid model_type. Choose 'svm' or 'cnn'.")
+                print(f"❌ Critical Error loading CNN: {e}")
+                import traceback
+                traceback.print_exc()
+                self.model = None
+
+        if self.model is None:
+            raise RuntimeError(f"Failed to initialize {self.model_type} model. See logs above.")
 
     def reset_history(self):
         """Reset the voting history when switching users or contexts."""
