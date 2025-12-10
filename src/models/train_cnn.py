@@ -7,6 +7,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense, Input, Lambda
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.regularizers import l2
 
 def train_cnn_model():
     # --- CONFIGURATION ---
@@ -18,7 +19,7 @@ def train_cnn_model():
     # script is in src/models/, so we go up two levels to get to project root
     BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     DATA_DIR = os.path.join(BASE_DIR, 'data', 'Detectedface')
-    MODELS_DIR = os.path.join(BASE_DIR, 'models')
+    MODELS_DIR = os.path.join(BASE_DIR, 'saved_models')
     
     # Ensure models directory exists
     os.makedirs(MODELS_DIR, exist_ok=True)
@@ -29,19 +30,20 @@ def train_cnn_model():
 
     if not os.path.exists(DATA_DIR):
         print(f"Error: Data directory not found at {DATA_DIR}")
+        print("Please ensure your dataset is in 'data/Detectedface' folder.")
         return
 
     # --- DATA PREPARATION ---
     # 1. Define Generators
     # Training: Augmented (Safe for cropped faces)
     train_datagen = ImageDataGenerator(
-        validation_split=0.2,
-        rotation_range=10,       # Reduced rotation to keep corners safe
-        width_shift_range=0.1,   # Reduced shift to keep features in frame
+        validation_split=0.2, # Correctly split for training
+        rotation_range=10,       
+        width_shift_range=0.1,   
         height_shift_range=0.1,
         shear_range=0.1,
         zoom_range=0.1,
-        horizontal_flip=True,    # Safe and effective
+        horizontal_flip=True,    
         fill_mode='nearest'
         # Note: No rescale=1./255 because MobileNetV2 preprocess_input handles it
     )
@@ -86,7 +88,8 @@ def train_cnn_model():
     # 3. Head (Classifier)
     model.add(GlobalAveragePooling2D())
     model.add(Dropout(0.3))
-    model.add(Dense(128, activation="relu"))
+    # Added kernel_regularizer to match notebook
+    model.add(Dense(128, activation="relu", kernel_regularizer=l2(0.01)))
     model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
 
@@ -100,7 +103,7 @@ def train_cnn_model():
     model.summary()
 
     # --- CALLBACKS ---
-    model_save_path = os.path.join(MODELS_DIR, 'face_antispoofing_model.h5')
+    model_save_path = os.path.join(MODELS_DIR, 'face_antispoofing2_model.h5')
     
     callbacks = [
         EarlyStopping(
@@ -138,23 +141,24 @@ def train_cnn_model():
         print(f"\nError during training: {e}")
 
 def plot_history(history, save_dir):
-    acc = history.history['accuracy']
-    val_acc = history.history['val_accuracy']
-    loss = history.history['loss']
-    val_loss = history.history['val_loss']
+    if not history: return
+    acc = history.history.get('accuracy', [])
+    val_acc = history.history.get('val_accuracy', [])
+    loss = history.history.get('loss', [])
+    val_loss = history.history.get('val_loss', [])
     epochs_range = range(len(acc))
 
     plt.figure(figsize=(12, 4))
     
     plt.subplot(1, 2, 1)
-    plt.plot(epochs_range, acc, label='Training Accuracy')
-    plt.plot(epochs_range, val_acc, label='Validation Accuracy')
+    if acc: plt.plot(epochs_range, acc, label='Training Accuracy')
+    if val_acc: plt.plot(epochs_range, val_acc, label='Validation Accuracy')
     plt.legend(loc='lower right')
     plt.title('Training and Validation Accuracy')
 
     plt.subplot(1, 2, 2)
-    plt.plot(epochs_range, loss, label='Training Loss')
-    plt.plot(epochs_range, val_loss, label='Validation Loss')
+    if loss: plt.plot(epochs_range, loss, label='Training Loss')
+    if val_loss: plt.plot(epochs_range, val_loss, label='Validation Loss')
     plt.legend(loc='upper right')
     plt.title('Training and Validation Loss')
     

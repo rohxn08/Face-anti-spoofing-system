@@ -27,7 +27,7 @@ class RealTimePredictor:
         self.model = None
         self.scaler = None
         self.extractor = None
-        self.base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'models'))
+        self.base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'saved_models'))
         
         # --- VOTING HISTORY ---
         self.history = deque(maxlen=10) # Store last 10 predictions
@@ -55,7 +55,7 @@ class RealTimePredictor:
                 self.model = None
                 
         elif self.model_type == 'cnn':
-            cnn_path = os.path.join(self.base_path, 'face_antispoofing_model.h5')
+            cnn_path = os.path.join(self.base_path, 'face_antispoofing2_model.h5')
             if not os.path.exists(cnn_path):
                 raise FileNotFoundError(f"CRITICAL: Model file missing at {cnn_path}")
 
