@@ -37,15 +37,15 @@ def train_cnn_model():
     # 1. Define Generators
     # Training: Augmented (Safe for cropped faces)
     train_datagen = ImageDataGenerator(
-        validation_split=0.2, # Correctly split for training
-        rotation_range=10,       
-        width_shift_range=0.1,   
-        height_shift_range=0.1,
-        shear_range=0.1,
-        zoom_range=0.1,
+        validation_split=0.2,
+        rotation_range=10,       # Reduced: Safer for cropped faces
+        width_shift_range=0.1,   # Reduced: Simulates minor detector jitter
+        height_shift_range=0.1,  
+        shear_range=0.1,         # Reduced
+        zoom_range=0.1,          # Reduced
+        brightness_range=[0.8, 1.2], # Keep: Excellent for anti-spoofing
         horizontal_flip=True,    
         fill_mode='nearest'
-        # Note: No rescale=1./255 because MobileNetV2 preprocess_input handles it
     )
 
     # Validation: No Augmentation
@@ -87,10 +87,10 @@ def train_cnn_model():
     
     # 3. Head (Classifier)
     model.add(GlobalAveragePooling2D())
-    model.add(Dropout(0.3))
-    # Added kernel_regularizer to match notebook
-    model.add(Dense(128, activation="relu", kernel_regularizer=l2(0.01)))
-    model.add(Dropout(0.3))
+    model.add(Dropout(0.5)) # Increased Dropout
+    # Reduced Dense size and adjusted L2
+    model.add(Dense(64, activation="relu", kernel_regularizer=l2(0.01)))
+    model.add(Dropout(0.5)) # Increased Dropout
     model.add(Dense(1, activation='sigmoid'))
 
     # --- COMPILATION ---
