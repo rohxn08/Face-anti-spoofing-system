@@ -8,11 +8,12 @@ from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense, Inpu
 from tensorflow.keras.applications import MobileNetV2
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.regularizers import l2
+from tensorflow.keras.optimizers import Adam
 
 def train_cnn_model():
     # --- CONFIGURATION ---
     BATCH_SIZE = 32
-    IMG_SIZE = (128, 128)
+    IMG_SIZE = (224, 224)
     EPOCHS = 15
     
     # Paths (Relative to script location)
@@ -75,14 +76,16 @@ def train_cnn_model():
     # --- MODEL ARCHITECTURE ---
     print("\nBuilding Model...")
     model = Sequential()
-    model.add(Input(shape=(128, 128, 3)))
+    model.add(Input(shape=(224, 224, 3)))
     
     # 1. Preprocessing Layer (MobileNetV2 expects [-1, 1])
     model.add(Lambda(preprocess_input))
     
     # 2. Base Model (Transfer Learning)
-    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=(128, 128, 3))
-    base_model.trainable = False # Freeze base layers
+    base_model = MobileNetV2(include_top=False, weights='imagenet', input_shape=(224,224, 3))
+    base_model.trainable = True # Freeze base layers
+    for layer in base_model.layers[:-20]:
+        layer.trainable = False  
     model.add(base_model)
     
     # 3. Head (Classifier)
@@ -95,7 +98,7 @@ def train_cnn_model():
 
     # --- COMPILATION ---
     model.compile(
-        optimizer='adam',
+        optimizer=Adam(learning_rate=0.00001),
         loss='binary_crossentropy',
         metrics=['accuracy']
     )

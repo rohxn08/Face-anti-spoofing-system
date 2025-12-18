@@ -10,7 +10,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from src.features.lbp_extractor import LBPExtractor
-def load_data_from_dirs(real_dir, attack_dir):
+def load_data_from_dirs(real_dir, attack_dir, target_size=(128, 128)):
     X = []
     y = []
     extractor = LBPExtractor()
