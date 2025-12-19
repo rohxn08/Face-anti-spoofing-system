@@ -29,13 +29,10 @@ def train_model(x, y):
     xtr = scaler.fit_transform(xtr)
     xte = scaler.transform(xte)
     
-    param_grid = {
-        "C": [0.1, 1, 10, 100],
-        "gamma": ["scale", "auto", 0.1, 0.01, 0.001],
-        "kernel": ["rbf", "poly", "linear"]
-    }
+    param_grid = {'C': [0.1, 1, 10], 'gamma': ['scale'], 'kernel': ['rbf']}
     
-    # Use roc_auc for better threshold-independent evaluation
+    # 3. SVM GridSearch
+    
     grid = GridSearchCV(estimator=SVC(class_weight="balanced", probability=True), param_grid=param_grid, scoring="roc_auc", cv=3, n_jobs=-1, verbose=1)
     grid.fit(xtr, ytr)
     model = grid.best_estimator_

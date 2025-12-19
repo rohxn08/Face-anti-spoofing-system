@@ -41,11 +41,11 @@ def load_data_from_dirs(real_dir, attack_dir, target_size=(128, 128)):
                             print(f"Error processing {filename}: {e}")
         print(f"Loaded {count} images from {directory}")
 
-    # Process Real Images (Label 1)
-    process_directory(real_dir, 1)
+    # Process Real Images (Label 0)
+    process_directory(real_dir, 0)
 
-    # Process Attack Images (Label 0)
-    process_directory(attack_dir, 0)
+    # Process Attack Images (Label 1)
+    process_directory(attack_dir, 1)
 
     return np.array(X), np.array(y)
 

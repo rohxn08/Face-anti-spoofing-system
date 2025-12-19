@@ -39,7 +39,7 @@ class RealTimePredictor:
         
         if self.model_type == 'svm':
             try:
-                svm_path = os.path.join(self.base_path, 'svm_face_antispoofing.pkl')
+                svm_path = os.path.join(self.base_path, 'face_antispoof_svm.pkl')
                 scaler_path = os.path.join(self.base_path, 'scaler.pkl')
                 
                 if not os.path.exists(svm_path):
@@ -130,12 +130,12 @@ class RealTimePredictor:
                 feat_scaled = self.scaler.transform(feat)
                 prediction = self.model.predict(feat_scaled)[0] # 1=Real, 0=Spoof
                 
-                is_real_frame = (prediction == 1)
+                is_real_frame = (prediction == 0)
                 
                 # Confidence workaround for SVM
                 if hasattr(self.model, "predict_proba"):
                     probs = self.model.predict_proba(feat_scaled)[0]
-                    raw_score = probs[1] if is_real_frame else probs[0]
+                    raw_score = probs[0] if is_real_frame else probs[1]
                 else:
                     raw_score = 1.0
 

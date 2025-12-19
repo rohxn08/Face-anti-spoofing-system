@@ -6,3 +6,4 @@ joblib
 imutils
 streamlit
 tensorflow
+scikit-image
