@@ -55,15 +55,36 @@ class RealTimePredictor:
                 self.model = None
                 
         elif self.model_type == 'cnn':
-            cnn_path = os.path.join(self.base_path, 'face_antispoofing2_model.h5')
+            cnn_path = os.path.join(self.base_path, 'face_antispoofing_v3_224.keras')
             if not os.path.exists(cnn_path):
                 raise FileNotFoundError(f"CRITICAL: Model file missing at {cnn_path}")
 
             try:
-                print("DEBUG: Loading CNN with standard load_model...")
-                # Use compile=False to avoid optimizer and graph version issues
-                self.model = load_model(cnn_path, custom_objects={'preprocess_input': preprocess_input}, compile=False)
-                print("✅ CNN Model Loaded Successfully")
+                print("DEBUG: Reconstructing model architecture and loading weights...")
+                
+                from tensorflow.keras.models import Model
+                from tensorflow.keras.layers import Input, GlobalAveragePooling2D, Dropout, Dense, Lambda
+                from tensorflow.keras.applications.mobilenet_v2 import preprocess_input, MobileNetV2
+                
+                # 1. Re-define the EXACT architecture (functional API)
+                inputs = Input(shape=(224, 224, 3))
+                x = Lambda(preprocess_input)(inputs)
+                
+                # Load MobileNetV2 without weights (we load them later)
+                base_model = MobileNetV2(include_top=False, weights=None, input_shape=(224, 224, 3))
+                x = base_model(x)
+                
+                x = GlobalAveragePooling2D()(x)
+                x = Dropout(0.5)(x)
+                x = Dense(64, activation="relu")(x)
+                x = Dropout(0.5)(x)
+                outputs = Dense(1, activation='sigmoid')(x)
+                
+                self.model = Model(inputs, outputs)
+                
+                # 2. Load weights
+                self.model.load_weights(cnn_path)
+                print("✅ CNN Model Loaded Successfully (Weights Only Mode)")
             except Exception as e:
                 print(f"❌ Critical Error loading CNN: {e}")
                 import traceback
@@ -87,7 +108,12 @@ class RealTimePredictor:
             bbox: (x, y, w, h) or None if no face
         """
         # Detect and Crop Face
-        face, bbox = preprocess_face(frame, target_size=(128, 128))
+        if self.model_type=='cnn':
+            target_size=(224,224)
+        else:
+            target_size=(128,128)
+        face, bbox = preprocess_face(frame, target_size=target_size)
+       
         
         if face is None:
             self.history.clear() # Reset if face is lost
