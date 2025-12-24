@@ -96,10 +96,17 @@ start_model_key = 'cnn' if "CNN" in model_choice else 'svm'
 # 2. Sub-Selection: Input Mode
 st.sidebar.markdown("---")
 st.sidebar.markdown('<p class="sidebar-text">Select Input Mode</p>', unsafe_allow_html=True)
-input_mode = st.sidebar.radio(
-    "Choose how to provide data:",
-    ("Upload Image", "Live Prediction (Webcam)")
-)
+
+if start_model_key == 'svm':
+    # SVM Mode: Only Static Images allowed
+    input_mode = "Upload Image"
+    st.sidebar.info("📷 **Note:** Real-time mode is disabled for SVM (Texture Focus) to ensure highest accuracy on static analysis.")
+else:
+    # CNN Mode: Both allowed
+    input_mode = st.sidebar.radio(
+        "Choose how to provide data:",
+        ("Upload Image", "Live Prediction (Webcam)")
+    )
 
 st.sidebar.markdown("---")
 st.sidebar.info(f"Currently using **{start_model_key.upper()}** model.")
