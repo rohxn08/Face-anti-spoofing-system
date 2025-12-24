@@ -39,24 +39,32 @@ class RealTimePredictor:
         
         if self.model_type == 'svm':
             try:
-                # Updated paths matching train_svm.py
-                svm_path = os.path.join(self.base_path, 'face_antispoof_svm.pkl')
-                scaler_path = os.path.join(self.base_path, 'scaler.pkl')
-                pca_path = os.path.join(self.base_path, 'pca.pkl')
+                # User provided Dictionary Artifacts
+                svm_path = os.path.join(self.base_path, 'svm_texture_pipeline.pkl')
                 
                 if not os.path.exists(svm_path):
-                    raise FileNotFoundError(f"SVM model not found at {svm_path}")
+                    raise FileNotFoundError(f"SVM pipeline not found at {svm_path}")
                 
-                print(f"Loading SVM and pipelines...")
-                self.model = joblib.load(svm_path)
-                self.scaler = joblib.load(scaler_path)
-                self.pca = joblib.load(pca_path)
+                print(f"Loading SVM Artifacts from {svm_path}...")
+                artifacts = joblib.load(svm_path)
                 
-                # Updated Extractor specific parameters (matches training)
-                self.extractor = LBPExtractor(num_points=24, radius=3)
+                # Unpack the dictionary
+                self.scaler = artifacts['scaler']
+                self.pca = artifacts['pca']
+                self.model = artifacts['svm_model']
+                lbp_params = artifacts.get('lbp_params', {'num_points': 24, 'radius': 3})
+                
+                # Initialize Extractor with saved params
+                self.extractor = LBPExtractor(
+                    num_points=lbp_params['num_points'], 
+                    radius=lbp_params['radius'], 
+                    grid_x=4, grid_y=4
+                )
                 print("✅ SVM Texture Pipeline Loaded Successfully")
             except Exception as e:
                 print(f"❌ Error loading SVM Pipeline: {e}")
+                import traceback
+                traceback.print_exc()
                 self.model = None
                 
         elif self.model_type == 'cnn':
@@ -130,17 +138,34 @@ class RealTimePredictor:
         try:
             if self.model_type == 'svm':
                 # --- SVM LOGIC ---
+                # 1. Extract
                 feat = self.extractor.extract(face)
                 feat = feat.reshape(1, -1)
+                
+                # 2. Scale
                 feat_scaled = self.scaler.transform(feat)
-                prediction = self.model.predict(feat_scaled)[0] # 1=Real, 0=Spoof
+                
+                # 3. PCA
+                feat_pca = self.pca.transform(feat_scaled)
+                
+                # 4. Predict
+                prediction = self.model.predict(feat_pca)[0] # 1=Real, 0=Spoof (Check training mapping!)
+                
+                # In your custom training logic:
+                # Real = 0
+                # Imposter = 1
+                # So if prediction is 0, it is REAL.
                 
                 is_real_frame = (prediction == 0)
                 
-                # Confidence workaround for SVM
+                # Confidence
                 if hasattr(self.model, "predict_proba"):
-                    probs = self.model.predict_proba(feat_scaled)[0]
+                    probs = self.model.predict_proba(feat_pca)[0]
                     raw_score = probs[0] if is_real_frame else probs[1]
+                elif hasattr(self.model, "decision_function"):
+                    score = self.model.decision_function(feat_pca)[0]
+                    raw_score = 1 / (1 + np.exp(-score)) 
+                    if not is_real_frame: raw_score = 1 - raw_score
                 else:
                     raw_score = 1.0
 
