@@ -39,19 +39,24 @@ class RealTimePredictor:
         
         if self.model_type == 'svm':
             try:
+                # Updated paths matching train_svm.py
                 svm_path = os.path.join(self.base_path, 'face_antispoof_svm.pkl')
                 scaler_path = os.path.join(self.base_path, 'scaler.pkl')
+                pca_path = os.path.join(self.base_path, 'pca.pkl')
                 
                 if not os.path.exists(svm_path):
                     raise FileNotFoundError(f"SVM model not found at {svm_path}")
                 
-                print(f"Loading SVM from {svm_path}")
+                print(f"Loading SVM and pipelines...")
                 self.model = joblib.load(svm_path)
                 self.scaler = joblib.load(scaler_path)
-                self.extractor = LBPExtractor()
-                print("✅ SVM Model Loaded Successfully")
+                self.pca = joblib.load(pca_path)
+                
+                # Updated Extractor specific parameters (matches training)
+                self.extractor = LBPExtractor(num_points=24, radius=3)
+                print("✅ SVM Texture Pipeline Loaded Successfully")
             except Exception as e:
-                print(f"❌ Error loading SVM: {e}")
+                print(f"❌ Error loading SVM Pipeline: {e}")
                 self.model = None
                 
         elif self.model_type == 'cnn':

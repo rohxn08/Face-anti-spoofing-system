@@ -1,71 +1,119 @@
 from sklearn.model_selection import train_test_split
-from sklearn import svm
-from sklearn.svm import SVC
+from sklearn.svm import LinearSVC
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import classification_report, accuracy_score, precision_score, recall_score, f1_score
+from sklearn.decomposition import PCA
 import numpy as np
 import os
 import cv2
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import GridSearchCV
 import sys
 import joblib
 
 # Add src to path to import modules if running from root
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 from src.features.lbp_extractor import LBPExtractor
-from src.preprocessing.preprocess import load_data_from_dirs
 
+# Define dataset paths
 attack_dir = r"data\Detectedface\ImposterFace"
 real_dir = r"data\Detectedface\ClientFace"
-extractor = LBPExtractor()
+IMG_SIZE = (128, 128)
+
+# Initialize Extractor with new settings
+extractor = LBPExtractor(num_points=24, radius=3)
+
+def load_data_robust(real_dir, attack_dir):
+    x = []
+    y = []
+    
+    def process_dir(directory, label):
+        count = 0
+        if not os.path.exists(directory):
+            print(f"Warning: Directory not found: {directory}")
+            return 0
+            
+        print(f"Processing {directory}...")
+        for root, _, files in os.walk(directory):
+            for filename in files:
+                if filename.lower().endswith(('.jpg', '.png', '.jpeg', '.bmp')):
+                    img_path = os.path.join(root, filename)
+                    img = cv2.imread(img_path)
+                    if img is not None:
+                        try:
+                            # INTERNAL CROP: Ignore hair/ears/background
+                            h, w = img.shape[:2]
+                            # Take center 50% of the image (25% margin on all sides)
+                            img_cropped = img[int(h*0.25):int(h*0.75), int(w*0.25):int(w*0.75)]
+                            img_resized = cv2.resize(img_cropped, IMG_SIZE)
+                            
+                            feat = extractor.extract(img_resized)
+                            x.append(feat)
+                            y.append(label)
+                            count += 1
+                        except Exception as e:
+                            print(f"Error processing {filename}: {e}")
+        return count
+
+    n_real = process_dir(real_dir, 0)
+    n_imposter = process_dir(attack_dir, 1)
+    
+    print(f"Loaded {n_real} real images and {n_imposter} imposter images.")
+    return np.array(x), np.array(y)
 
 def train_model(x, y):
-    # Split first to avoid data leakage
+    # Split
     xtr, xte, ytr, yte = train_test_split(x, y, test_size=0.2, random_state=42)
     
-    # Scale after splitting
+    # Scale
     scaler = StandardScaler()
     xtr = scaler.fit_transform(xtr)
     xte = scaler.transform(xte)
     
-    param_grid = {'C': [0.1, 1, 10], 'gamma': ['scale'], 'kernel': ['rbf']}
+    # PCA STARVATION: Dropping to 70% variance kills the high-frequency identity/noise
+    pca = PCA(n_components=0.70, random_state=42)
+    xtr = pca.fit_transform(xtr)
+    xte = pca.transform(xte)
     
-    # 3. SVM GridSearch
+    print(f"PCA Components retained: {pca.n_components_}")
     
-    grid = GridSearchCV(estimator=SVC(class_weight="balanced", probability=True), param_grid=param_grid, scoring="roc_auc", cv=3, n_jobs=-1, verbose=1)
-    grid.fit(xtr, ytr)
-    model = grid.best_estimator_
+    # Strong L1 Regularization (Feature Selection)
+    print("Training Calibrated LinearSVC...")
+    base_svm = LinearSVC(penalty='l1', C=0.005, dual=False, class_weight='balanced', max_iter=5000)
+    model = CalibratedClassifierCV(base_svm, cv=5)
+    model.fit(xtr, ytr)
     
-    return model, scaler, xte, yte
+    return model, scaler, pca, xte, yte, xtr, ytr
 
-def predict(model, xte, yte):
+def predict(model, xte):
     y_preds = model.predict(xte)
     return y_preds
 
 if __name__ == "__main__":
-    print("Loading data...")
-    x, y = load_data_from_dirs(real_dir, attack_dir)
-    print(f"Data loaded: {len(x)} samples")
+    print("Loading Chrominance-Texture data...")
+    # Using the local load function since logic is custom (cropping)
+    x, y = load_data_robust(real_dir, attack_dir)
 
     if len(x) == 0:
         print("No data found. Please check the dataset paths.")
     else:
-        print("Training model...")
-        model, scaler, xte, yte = train_model(x, y)
+        model, scaler, pca, xte, yte, xtr, ytr = train_model(x, y)
         
-        print("Predicting...")
-        y_preds = predict(model, xte, yte)
+        # --- DIAGNOSTICS ---
+        print("\n" + "="*40)
+        print("     MODEL DIAGNOSTICS")
+        print("="*40)
         
-        print("-" * 30)
-        print("Accuracy:", accuracy_score(yte, y_preds))
-        print("Precision:", precision_score(yte, y_preds))
-        print("Recall:", recall_score(yte, y_preds))
-        print("F1 Score:", f1_score(yte, y_preds))
-        print("-" * 30)
-
-        # Save model and scaler
-        os.makedirs('models', exist_ok=True)
-        joblib.dump(model, 'models/svm_face_antispoofing.pkl')
-        joblib.dump(scaler, 'models/scaler.pkl')
-        print("Model and scaler saved to 'models/' directory.")
+        train_preds = model.predict(xtr)
+        print(f"Train Accuracy: {accuracy_score(ytr, train_preds):.4f}")
+        
+        print("\nTest Set Evaluation:")
+        y_preds = predict(model, xte)
+        print(classification_report(yte, y_preds, target_names=['Real', 'Spoof']))
+        
+        # Save artifacts to 'saved_models' to match the predictor's expectations
+        os.makedirs('saved_models', exist_ok=True)
+        joblib.dump(model, 'saved_models/face_antispoof_svm.pkl')
+        joblib.dump(scaler, 'saved_models/scaler.pkl')
+        joblib.dump(pca, 'saved_models/pca.pkl')
+        print("Model, scaler, and PCA saved to 'saved_models/' directory.")
