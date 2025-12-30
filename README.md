@@ -1,7 +1,7 @@
 # Face Anti-Spoofing System
 
 A machine learning system designed to distinguish between real faces and spoof attacks (e.g., photos, videos) using dual approaches:
-1.  **Traditional ML**: LBP (Local Binary Patterns) features + SVM classifier.
+1.  **Traditional ML**: A robust pipeline using **YCbCr + Spatial LBP** (Material & Structure analysis), dimensionality reduction via **PCA**, and classification using **LinearSVC**.
 2.  **Deep Learning**: Custom CNN (Convolutional Neural Network) trained on raw pixel data.
 
 ## Dataset
@@ -59,3 +59,6 @@ Open and run `notebooks/cnn_model_experiments.ipynb`. This notebook handles data
 - **Real-time Detection**: Uses OpenCV for face detection and preprocessing.
 - **Dual Support**: Switch between lightweight SVM (CPU-friendly) and robust CNN analysis.
 - **Robust Preprocessing**: Includes face cropping and scaling to `128x128`.
+
+## Performance
+- **SVM Model Accuracy**: 96% (YCbCr + Spatial LBP + PCA + LinearSVC)
