@@ -31,6 +31,7 @@ class RealTimePredictor:
         
         # --- VOTING HISTORY ---
         self.history = deque(maxlen=10) # Store last 10 predictions
+        self.last_bbox=None
 
         self._load_model()
         
@@ -110,6 +111,20 @@ class RealTimePredictor:
     def reset_history(self):
         """Reset the voting history when switching users or contexts."""
         self.history.clear()
+    def _is_scene_change(self,current_bbox):
+        if self.last_bbox is None:
+            return True
+        
+        x1,y1,w1,h1=current_bbox
+        x2,y2,w2,h2=self.last_bbox
+        c1=(x1+w1/2,y1+h1/2)
+        c2=(x2+w2/2,y2+h2/2)
+        dist=np.sqrt((c1[0]-c2[0])**2+(c1[1]-c2[1])**2)
+        if dist>100:
+            return True
+        return False
+        
+        
 
     def predict(self, frame,is_live=False):
         """
@@ -129,9 +144,16 @@ class RealTimePredictor:
        
         
         if face is None:
-            self.history.clear() # Reset if face is lost
+            self.history.clear() 
+            self.last_bbox = None 
             return "No Face", (0, 255, 255), None
 
+        if is_live:
+            if self._is_scene_change(bbox):
+                self.history.clear()
+            
+            self.last_bbox = bbox
+            
         raw_score = 0
         is_real_frame = False # Prediction for THIS specific frame
         
@@ -178,13 +200,25 @@ class RealTimePredictor:
                 # Predict gives probability of Class 1 (Imposter)
                 cnn_score = self.model.predict(img, verbose=0)[0][0]
                 
-                # Logic: < 0.5 is Real (Client), > 0.5 is Spoof (Imposter)
-                if cnn_score < 0.5:
-                    is_real_frame = True
-                    raw_score = 1.0 - cnn_score
+                # Logic branching based on deployment mode
+                if is_live:
+                    # LIVE MODE: Inverted Logic (Based on observed behavior)
+                    # Score > 0.5 means REAL
+                    if cnn_score > 0.5:
+                        is_real_frame = True
+                        raw_score = cnn_score
+                    else:
+                        is_real_frame = False
+                        raw_score = 1.0 - cnn_score
                 else:
-                    is_real_frame = False
-                    raw_score = cnn_score
+                    # STATIC MODE: Standard Logic
+                    # Score < 0.5 means REAL (Class 0)
+                    if cnn_score < 0.5:
+                        is_real_frame = True
+                        raw_score = 1.0 - cnn_score
+                    else:
+                        is_real_frame = False
+                        raw_score = cnn_score
 
             # --- VOTING LOGIC ---
             if is_live:
