@@ -202,6 +202,8 @@ elif input_mode == "Live Prediction (Webcam)":
         st_frame = st.empty()
         
     if run_live:
+        # Reset voting history for a new session
+        predictor.reset_history()
         cap = cv2.VideoCapture(0)
         
         if not cap.isOpened():
