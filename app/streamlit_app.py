@@ -161,7 +161,7 @@ if input_mode == "Upload Image":
                     image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
                     
                     # Predict
-                    label, color, bbox = predictor.predict(image_bgr)
+                    label, color, bbox = predictor.predict(image_bgr, is_live=False)
                     
                     if bbox is None:
                         st.warning("⚠️ No face detected in the image.")
@@ -214,7 +214,7 @@ elif input_mode == "Live Prediction (Webcam)":
                     break
                 
                 # Predict
-                label, color, bbox = predictor.predict(frame)
+                label, color, bbox = predictor.predict(frame, is_live=True)
                 
                 # Draw Visuals
                 if bbox:

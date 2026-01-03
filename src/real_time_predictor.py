@@ -111,7 +111,7 @@ class RealTimePredictor:
         """Reset the voting history when switching users or contexts."""
         self.history.clear()
 
-    def predict(self, frame):
+    def predict(self, frame,is_live=False):
         """
         Predicts if a face in the frame is Real or Spoof using VOTING.
         Returns: 
@@ -187,15 +187,16 @@ class RealTimePredictor:
                     raw_score = cnn_score
 
             # --- VOTING LOGIC ---
-            # Append 1 for Real, 0 for Spoof
-            self.history.append(1 if is_real_frame else 0)
-            
-            # Calculate average vote
-            avg_vote = sum(self.history) / len(self.history)
-            
-            # Threshold > 0.5 means Majority say Real
-            is_real_final = (avg_vote > 0.5)
-            
+            if is_live:
+                self.history.append(1 if is_real_frame else 0)
+                
+                # Calculate average vote
+                avg_vote = sum(self.history) / len(self.history)
+                
+                # Threshold > 0.5 means Majority say Real
+                is_real_final = (avg_vote > 0.5)
+            else:
+                is_real_final = is_real_frame
             # --- FORMAT OUTPUT ---
             if is_real_final:
                 label = f"REAL ({raw_score:.2f})"
