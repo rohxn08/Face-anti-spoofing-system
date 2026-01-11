@@ -74,9 +74,18 @@ def check_scene_change(model_key, current_bbox):
     # Euclidean distance
     dist = np.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
     
-    # Threshold (in pixels)
-    if dist > 100:
+    # 1. Distance Threshold (tightened to 50px)
+    if dist > 50:
         return True
+        
+    # 2. Area/Size Change Detection
+    # If the face size changes significantly (>25%), treat as new scene
+    area1 = w1 * h1
+    area2 = w2 * h2
+    if area2 > 0:
+        area_diff = abs(area1 - area2) / area2
+        if area_diff > 0.25:
+            return True
         
     return False
 
