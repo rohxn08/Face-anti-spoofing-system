@@ -77,58 +77,56 @@ For purely texture-based analysis on static images, we utilize a classical pipel
 ```bash
 Face anti spoofing system/
 ├── app/
-│   └── streamlit_app.py        # Main Streamlit Application (Frontend)
+│   └── streamlit_app.py        # Streamlit Frontend (UI Only)
+├── api/
+│   └── main.py                 # FastAPI Backend (AI Logic)
 ├── src/
-│   ├── real_time_predictor.py  # Core logic engine (Voting, Scene Detection, Prediction)
-│   ├── preprocessing/          # Image cleaning and face cropping utilities
-│   ├── features/               # LBP Feature Extractor
-│   └── models/                 # Training scripts for CNN and SVM
-├── saved_models/
-│   ├── face_antispoofing_v3_224.keras  # Trained CNN Model
-│   └── svm_texture_pipeline.pkl        # Trained SVM+PCA Pipeline
-├── data/                       # Dataset directory
-├── requirements.txt            # Project dependencies
-└── README.md                   # Documentation
+│   ├── real_time_predictor.py  # Core logic engine
+│   ├── ...
+├── saved_models/               # Model artifacts
+├── start_app.bat               # Windows launcher script
+└── requirements.txt            # Dependencies
 ```
 
 ## 7. How to Run the App
 
-### Prerequisites
-*   Python 3.10 or higher installed.
-*   A webcam (for real-time testing).
+The system is now split into two parts: a **Backend API** (FastAPI) and a **Frontend UI** (Streamlit). You must run both.
 
-### Step 1: Install Dependencies
-Navigate to the project root and install the required packages:
+### Quick Start (Windows)
+Double-click the `start_app.bat` file in the project folder. This will automatically launch both the backend and frontend in separate windows.
+
+### Manual Start
+If you prefer running them manually, open two terminals:
+
+**Terminal 1 (Backend):**
 ```bash
-pip install -r requirements.txt
+python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+*Wait for "Application startup complete"*
+
+**Terminal 2 (Frontend):**
+```bash
+python -m streamlit run app/streamlit_app.py
 ```
 
-### Step 2: Launch the App
-Run the Streamlit server:
-```bash
-streamlit run app/streamlit_app.py
-```
-
-### Step 3: Access the Interface
-*   The app will automatically open in your default browser at `http://localhost:8501`.
-*   Select **"CNN"** from the sidebar for the best real-time performance.
-*   Toggle **"Live Prediction (Webcam)"** and check **"Turn on Webcam"** to test.
+### Accessing the App
+*   **Web Interface**: [http://localhost:8501](http://localhost:8501)
+*   **API Documentation**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
 ## 8. Difficulties Faced
 
-**1. The "Inertia" Lag in Video:**
+**1. Architecture Decoupling:**
+Transitioning from a monolithic Streamlit app to a client-server model required careful handling of state (voting history). We had to move the `deque` history logic into the FastAPI state management to ensure session consistency across HTTP requests.
+
+**2. The "Inertia" Lag in Video:**
 Initially, using a continuous voting window meant the system was slow to react when a user swapped a real face for a spoof photo. The "Real" votes from history drowned out the "Spoof" votes.
 *   *Solution:* We implemented a **Scene Change Detector** that tracks face centroid movement. Any unnatural jump (>100px) or disappearance immediately wipes the history, making the system feel "snappy."
 
-**2. Model Calibration vs. Deployment:**
-The CNN model was trained on specifically normalized RGB images, but the webcam feed (via OpenCV) provides BGR frames with different color profiles. This caused the model to seemingly "invert" its predictions in real-time.
-*   *Solution:* We implemented a dedicated calibration logic branch in `real_time_predictor.py` that handles Live Video streams differently from Static Uploads, ensuring accurate thresholds for both.
-
-**3. Balancing Architecture:**
-Integrating two completely different model types (SVM vs. Deep Learning) into a single unified `Predictor` class required careful design to ensure the API remained clean (`predict(image)`) regardless of the underlying engine.
+**3. Model Calibration vs. Deployment:**
+The CNN model was trained on specifically normalized RGB images, but the webcam feed (via OpenCV) provides BGR frames with different color profiles. We implemented dedicated calibration logic to handle Live Video streams differently from Static Uploads.
 
 ## 9. Future Improvements
 
-*   **FastAPI Backend Migration**: Move the heavy AI inference to a dedicated FastAPI server and use **WebSockets** for the video stream. This will decouple the UI from the logic and allow for remote client support.
-*   **Liveness Detection**: Integrate simple liveness checks (like blink detection or head pose estimation) to defeat high-quality static photo attacks.
-*   **Mobile App Integration**: Build a React Native frontend to bring this security feature to mobile devices.
+*   **WebSocket Streaming**: Currently, the Streamlit app sends individual HTTP POST requests for every frame. Migrating to WebSockets would significantly reduce latency and network overhead.
+*   **Dockerization**: Containerize the API and Frontend for easy cloud deployment.
+*   **Mobile App Integration**: Build a React Native frontend to consume the API.

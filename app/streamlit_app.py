@@ -2,13 +2,12 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-import sys
-import os
+import requests
+import io
+import time
 
-# Ensure project root is in path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from src.real_time_predictor import RealTimePredictor
+# --- CONFIGURATION ---
+API_URL = "http://127.0.0.1:8000"
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -75,11 +74,40 @@ st.markdown("""
         font-size: 1.1rem;
         font-weight: 500;
     }
+    .api-status {
+        padding: 10px;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        text-align: center;
+        font-weight: bold;
+    }
+    .status-ok { background-color: #d1fae5; color: #065f46; }
+    .status-err { background-color: #fee2e2; color: #991b1b; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- SIDEBAR CONFIGURATION ---
 st.sidebar.markdown("## ⚙️ Configuration")
+
+# Check API Status
+api_status_placeholder = st.sidebar.empty()
+
+@st.cache_resource(ttl=5) 
+def check_api():
+    try:
+        r = requests.get(f"{API_URL}/", timeout=2)
+        if r.status_code == 200:
+            return True, "Online"
+    except:
+        pass
+    return False, "Offline"
+
+is_online, status_msg = check_api()
+if is_online:
+    api_status_placeholder.markdown(f'<div class="api-status status-ok">Backend API: {status_msg} 🟢</div>', unsafe_allow_html=True)
+else:
+    api_status_placeholder.markdown(f'<div class="api-status status-err">Backend API: {status_msg} 🔴</div>', unsafe_allow_html=True)
+    st.sidebar.error("Make sure `api/main.py` is running!")
 
 # 1. Main Selection: Model Type
 st.sidebar.markdown('<p class="sidebar-text">Select AI Model</p>', unsafe_allow_html=True)
@@ -111,30 +139,39 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.info(f"Currently using **{start_model_key.upper()}** model.")
 
-# --- FUNCTIONS ---
-
-@st.cache_resource(show_spinner=True)
-def load_predictor(model_type):
-    """
-    Loads and caches the RealTimePredictor to avoid reloading on every interaction.
-    """
+# --- API HELPERS ---
+def predict_frame(image_bgr, model_name, is_live):
+    # Encode frame to PNG (Lossless) to prevent compression artifacts affecting CNN
+    success, encoded_image = cv2.imencode('.png', image_bgr)
+    if not success:
+        return "Error Encoding", (0, 0, 0), None
+    
+    files = {'file': ('frame.png', encoded_image.tobytes(), 'image/png')}
+    data = {'model_name': model_name, 'is_live': str(is_live)}
+    
     try:
-        return RealTimePredictor(model_type=model_type)
+        response = requests.post(f"{API_URL}/predict", files=files, data=data, timeout=5)
+        if response.status_code == 200:
+            res = response.json()
+            # Parse color and bbox back to native types
+            color = tuple(res['color']) # [G, B, R]
+            bbox = tuple(res['bbox']) if res['bbox'] else None
+            return res['label'], color, bbox
+        else:
+            return f"API Error: {response.status_code}", (0,0,255), None
     except Exception as e:
-        st.error(f"Failed to load {model_type.upper()} model. Error: {e}")
-        return None
+        return f"Conn Error", (0,0,255), None
 
-# Load the selected model
-predictor = load_predictor(start_model_key)
+def reset_backend_history(model_name):
+    try:
+        requests.post(f"{API_URL}/reset_history", data={'model_name': model_name}, timeout=2)
+    except:
+        pass
 
 # --- MAIN CONTENT ---
 
 st.markdown('<div class="main-header">🛡️ Face Anti-Spoofing System</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="sub-header">Powered by {model_choice} | Secure Biometric Verification</div>', unsafe_allow_html=True)
-
-if predictor is None:
-    st.error("Critical Error: Model could not be loaded. Please check logs.")
-    st.stop()
+st.markdown(f'<div class="sub-header">Powered by {model_choice} (FastAPI Backend) | Secure Biometric Verification</div>', unsafe_allow_html=True)
 
 # --- MODE 1: UPLOAD IMAGE ---
 if input_mode == "Upload Image":
@@ -155,43 +192,48 @@ if input_mode == "Upload Image":
         with col2:
             st.write("#### Analysis Result")
             if st.button("🔍 Analyze Authenticity"):
-                with st.spinner("Processing..."):
-                    # Convert to OpenCV format (BGR)
-                    image_np = np.array(image_pil)
-                    image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
-                    
-                    # Predict
-                    label, color, bbox = predictor.predict(image_bgr, is_live=False)
-                    
-                    if bbox is None:
-                        st.warning("⚠️ No face detected in the image.")
-                    else:
-                        # Draw box on image for visualization
-                        x, y, w, h = bbox
-                        # Draw rectangle on original RGB image
-                        image_vis = image_np.copy()
-                        # Color in predictor is BGR, need RGB for PIL/Streaamlit
-                        color_rgb = (color[2], color[1], color[0]) 
-                        cv2.rectangle(image_vis, (x, y), (x+w, y+h), color_rgb, 4)
+                if not is_online:
+                    st.error("Backend is offline. Please start the API.")
+                else:
+                    with st.spinner("Processing via FastAPI..."):
+                        # Convert to OpenCV format (BGR)
+                        image_np = np.array(image_pil)
+                        image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
                         
-                        st.image(image_vis, caption="Detected Face", use_container_width=True)
+                        # Predict via API
+                        label, color, bbox = predict_frame(image_bgr, start_model_key, is_live=False)
                         
-                        # Display Card
-                        is_real = "REAL" in label
-                        card_class = "real-card" if is_real else "spoof-card"
-                        icon = "✅" if is_real else "🚨"
-                        
-                        st.markdown(f"""
-                        <div class="prediction-card {card_class}">
-                            <div class="label-text">{icon} {label}</div>
-                            <div>Confidence Level Analysis Complete</div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        if bbox is None:
+                            if "Error" in label:
+                                st.error(f"Analysis failed: {label}")
+                            else:
+                                st.warning("⚠️ No face detected in the image.")
+                        else:
+                            # Draw box on image for visualization
+                            x, y, w, h = bbox
+                            image_vis = image_np.copy()
+                            # Color in predictor is BGR, need RGB for PIL/Streamlit
+                            color_rgb = (color[2], color[1], color[0]) 
+                            cv2.rectangle(image_vis, (x, y), (x+w, y+h), color_rgb, 4)
+                            
+                            st.image(image_vis, caption="Detected Face", use_container_width=True)
+                            
+                            # Display Card
+                            is_real = "REAL" in label
+                            card_class = "real-card" if is_real else "spoof-card"
+                            icon = "✅" if is_real else "🚨"
+                            
+                            st.markdown(f"""
+                            <div class="prediction-card {card_class}">
+                                <div class="label-text">{icon} {label}</div>
+                                <div>Confidence Level Analysis Complete</div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
 # --- MODE 2: LIVE PREDICTION ---
 elif input_mode == "Live Prediction (Webcam)":
     st.write("### 🎥 Live Biometric Security Feed")
-    st.write("Click **Start** to open a real-time video feed. The system will analyze frames frame-by-frame.")
+    st.write("Click **Start** to open a real-time video feed. Frames are processed by the backend API.")
     
     col1, col2 = st.columns([3, 1])
     
@@ -202,36 +244,45 @@ elif input_mode == "Live Prediction (Webcam)":
         st_frame = st.empty()
         
     if run_live:
-        # Reset voting history for a new session
-        predictor.reset_history()
-        cap = cv2.VideoCapture(0)
-        
-        if not cap.isOpened():
-            st.error("Error: Could not open webcam.")
+        if not is_online:
+            st.error("Backend is offline. Please start the API.")
         else:
-            while run_live:
-                ret, frame = cap.read()
-                if not ret:
-                    st.error("Failed to capture video frame.")
-                    break
-                
-                # Predict
-                label, color, bbox = predictor.predict(frame, is_live=True)
-                
-                # Draw Visuals
-                if bbox:
-                    x, y, w, h = bbox
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-                    
-                    # Background for text for better readability
-                    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
-                    cv2.rectangle(frame, (x, y - 30), (x + label_size[0], y), color, -1)
-                    cv2.putText(frame, label, (x, y - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-                
-                # Convert BGR to RGB for Streamlit
-                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                st_frame.image(frame_rgb, channels="RGB", use_container_width=True)
+            # Reset voting history for a new session
+            reset_backend_history(start_model_key)
             
-            cap.release()
+            cap = cv2.VideoCapture(0)
+            
+            if not cap.isOpened():
+                st.error("Error: Could not open webcam.")
+            else:
+                while run_live:
+                    ret, frame = cap.read()
+                    if not ret:
+                        st.error("Failed to capture video frame.")
+                        break
+                    
+                    # Predict via API
+                    # Note: Sending every frame via HTTP might have latency. 
+                    # Ideally, client reduces FPS or resolution if needed.
+                    label, color, bbox = predict_frame(frame, start_model_key, is_live=True)
+                    
+                    # Draw Visuals
+                    if bbox:
+                        x, y, w, h = bbox
+                        cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
+                        
+                        # Background for text
+                        label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)
+                        cv2.rectangle(frame, (x, y - 30), (x + label_size[0], y), color, -1)
+                        cv2.putText(frame, label, (x, y - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+                    
+                    # Convert BGR to RGB for Streamlit
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    st_frame.image(frame_rgb, channels="RGB", use_container_width=True)
+                    
+                    # Slight delay to prevent flooding if local
+                    # time.sleep(0.01) 
+                
+                cap.release()
     else:
         st.info("Webcam is currently off. Check the box to start.")

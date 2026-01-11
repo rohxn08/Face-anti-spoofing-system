@@ -160,24 +160,34 @@ class RealTimePredictor:
         try:
             if self.model_type == 'svm':
                 # --- SVM LOGIC ---
-                # 1. Extract
-                feat = self.extractor.extract(face)
+                # 1. Pipeline Alignment: Training used a "Center 50% Crop" to focus on skin texture
+                # We emulate this here to match the feature distribution.
+                h, w = face.shape[:2]
+                
+                # Take center 50% (25% margin)
+                # Note: 'face' is already 128x128 from preprocess_face
+                y_start, y_end = int(h*0.25), int(h*0.75)
+                x_start, x_end = int(w*0.25), int(w*0.75)
+                
+                face_cropped = face[y_start:y_end, x_start:x_end]
+                
+                # Resize back to 128x128 as done in training
+                face_final = cv2.resize(face_cropped, (128, 128))
+                
+                # 2. Extract
+                feat = self.extractor.extract(face_final)
                 feat = feat.reshape(1, -1)
                 
-                # 2. Scale
+                # 3. Scale
                 feat_scaled = self.scaler.transform(feat)
                 
-                # 3. PCA
+                # 4. PCA
                 feat_pca = self.pca.transform(feat_scaled)
                 
-                # 4. Predict
-                prediction = self.model.predict(feat_pca)[0] # 1=Real, 0=Spoof (Check training mapping!)
+                # 5. Predict
+                prediction = self.model.predict(feat_pca)[0] 
                 
-                # In your custom training logic:
-                # Real = 0
-                # Imposter = 1
-                # So if prediction is 0, it is REAL.
-                
+                # Mapping: 0=Real, 1=Spoof (Confirmed in train_svm.py)
                 is_real_frame = (prediction == 0)
                 
                 # Confidence
@@ -190,6 +200,8 @@ class RealTimePredictor:
                     if not is_real_frame: raw_score = 1 - raw_score
                 else:
                     raw_score = 1.0
+                
+                print(f"DEBUG [SVM]: Pred={prediction} (Real={is_real_frame}) Conf={raw_score:.2f}")
 
             elif self.model_type == 'cnn':
                 # --- CNN LOGIC ---

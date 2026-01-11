@@ -7,3 +7,7 @@ imutils
 streamlit
 tensorflow
 scikit-image
+fastapi
+uvicorn
+python-multipart
+requests
