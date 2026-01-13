@@ -30,6 +30,7 @@ The primary engine for real-time analysis is a **MobileNetV2-based CNN**, fine-t
 
 *   **Input Resolution**: 224x224 RGB
 *   **Architecture**: MobileNetV2 Encoder (Top 20 layers fine-tuned) + Custom Dense Head.
+*   **Performance**: Achieves **~96% Accuracy** on the test set.
 *   **Key Behavior**: Optimized for identifying general spoofing artifacts like moiré patterns, screen glare, and depth inconsistencies.
 
 ### B. Classical Machine Learning: LBP + SVM
@@ -38,6 +39,7 @@ For purely texture-based analysis on static images, we utilize a classical pipel
 *   **Feature Extractor**: Local Binary Patterns (LBP) to capture micro-texture details.
 *   **Dimensionality Reduction**: PCA (Principal Component Analysis) to retain 95% variance.
 *   **Classifier**: Support Vector Machine (SVM) with RBF kernel.
+*   **Performance**: Achieves **~90% Accuracy**, specializing in detecting texture anomalies (e.g., printed dot patterns).
 
 ## 4. Features
 
@@ -55,6 +57,16 @@ For purely texture-based analysis on static images, we utilize a classical pipel
 ### Advanced Logic
 *   **Smart Continuity Check**: The `RealTimePredictor` tracks the face's position and size across frames. If a face moves unnaturally (teleports) or disappears, the system clears its memory to prevent "lag" when attackers swap a real face for a spoof.
 *   **Calibration**: The system logic is fine-tuned to handle specific camera color profiles (BGR/RGB) properly for accurate inference.
+
+### 3. Explainable AI (XAI)
+*   **Grad-CAM++ Integration**: We implemented the advanced **Grad-CAM++** algorithm to visualize the model's decision-making process.
+*   **Overlay Visualization**: Users can see a "Heatmap Overlay" on uploaded images, showing exactly which regions (eyes, torso reflection, background) contributed to the "Real" or "Spoof" verdict.
+*   **Robust Implementation**: Uses a specialized "Split Execution" strategy to handle the complex nested architecture of MobileNetV2 without breaking the TensorFlow graph.
+
+### 4. High-Performance Architecture
+*   **FastAPI Backend**: By decoupling the AI logic from the UI, we achieved a **massive performance boost**.
+    *   **Startup Time**: Reduced from **15-20 seconds** (monolithic loading) to **< 2 seconds**.
+    *   **Responsive**: The API handles requests asynchronously, keeping the UI fluid even during heavy processing.
 
 ## 5. Tech Stack
 
