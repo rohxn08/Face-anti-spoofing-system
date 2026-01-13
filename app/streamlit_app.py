@@ -1,5 +1,6 @@
 import streamlit as st
 import cv2
+import base64
 import numpy as np
 from PIL import Image
 import requests
@@ -136,18 +137,26 @@ else:
         ("Upload Image", "Live Prediction (Webcam)")
     )
 
+enable_explain = False
+if start_model_key == 'cnn':
+    # Only enable Explainability for Static Image Uploads
+    if input_mode == "Upload Image":
+        st.sidebar.markdown("---")
+        st.sidebar.markdown('### 🧠 Explainable AI')
+        enable_explain = st.sidebar.checkbox("Show Decision Heatmap", help="Visualizes where the model is looking (Grad-CAM). Note: Can slow down FPS.")
+
 st.sidebar.markdown("---")
 st.sidebar.info(f"Currently using **{start_model_key.upper()}** model.")
 
 # --- API HELPERS ---
-def predict_frame(image_bgr, model_name, is_live):
+def predict_frame(image_bgr, model_name, is_live, explain=False):
     # Encode frame to PNG (Lossless) to prevent compression artifacts affecting CNN
     success, encoded_image = cv2.imencode('.png', image_bgr)
     if not success:
-        return "Error Encoding", (0, 0, 0), None
+        return "Error Encoding", (0, 0, 0), None, None
     
     files = {'file': ('frame.png', encoded_image.tobytes(), 'image/png')}
-    data = {'model_name': model_name, 'is_live': str(is_live)}
+    data = {'model_name': model_name, 'is_live': str(is_live), 'explain': str(explain)}
     
     try:
         response = requests.post(f"{API_URL}/predict", files=files, data=data, timeout=5)
@@ -156,11 +165,12 @@ def predict_frame(image_bgr, model_name, is_live):
             # Parse color and bbox back to native types
             color = tuple(res['color']) # [G, B, R]
             bbox = tuple(res['bbox']) if res['bbox'] else None
-            return res['label'], color, bbox
+            gradcam_b64 = res.get('gradcam_image')
+            return res['label'], color, bbox, gradcam_b64
         else:
-            return f"API Error: {response.status_code}", (0,0,255), None
+            return f"API Error: {response.status_code}", (0,0,255), None, None
     except Exception as e:
-        return f"Conn Error", (0,0,255), None
+        return f"Conn Error", (0,0,255), None, None
 
 def reset_backend_history(model_name):
     try:
@@ -201,7 +211,7 @@ if input_mode == "Upload Image":
                         image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
                         
                         # Predict via API
-                        label, color, bbox = predict_frame(image_bgr, start_model_key, is_live=False)
+                        label, color, bbox, gradcam_b64 = predict_frame(image_bgr, start_model_key, is_live=False, explain=enable_explain)
                         
                         if bbox is None:
                             if "Error" in label:
@@ -217,6 +227,7 @@ if input_mode == "Upload Image":
                             cv2.rectangle(image_vis, (x, y), (x+w, y+h), color_rgb, 4)
                             
                             st.image(image_vis, caption="Detected Face", use_container_width=True)
+
                             
                             # Display Card
                             is_real = "REAL" in label
@@ -230,6 +241,18 @@ if input_mode == "Upload Image":
                             </div>
                             """, unsafe_allow_html=True)
 
+            if gradcam_b64:
+                st.markdown("---")
+                st.write("### 🧠 Explainable AI: Model Attention")
+                st.write("The heatmap below shows which pixels strongly influenced the model's decision using Grad-CAM.")
+                
+                heatmap_bytes = base64.b64decode(gradcam_b64)
+                
+                # Center the image using columns
+                h_col1, h_col2, h_col3 = st.columns([1,2,1])
+                with h_col2:
+                    st.image(heatmap_bytes, caption="Heatmap Visualization (Red = High Importance)", use_container_width=True)
+
 # --- MODE 2: LIVE PREDICTION ---
 elif input_mode == "Live Prediction (Webcam)":
     st.write("### 🎥 Live Biometric Security Feed")
@@ -242,6 +265,8 @@ elif input_mode == "Live Prediction (Webcam)":
         
     with col1:
         st_frame = st.empty()
+        
+    # Placeholder for Heatmap below the video (REMOVED for Real-Time) --
         
     if run_live:
         if not is_online:
@@ -264,7 +289,7 @@ elif input_mode == "Live Prediction (Webcam)":
                     # Predict via API
                     # Note: Sending every frame via HTTP might have latency. 
                     # Ideally, client reduces FPS or resolution if needed.
-                    label, color, bbox = predict_frame(frame, start_model_key, is_live=True)
+                    label, color, bbox, gradcam_b64 = predict_frame(frame, start_model_key, is_live=True, explain=enable_explain)
                     
                     # Draw Visuals
                     if bbox:
@@ -279,6 +304,7 @@ elif input_mode == "Live Prediction (Webcam)":
                     # Convert BGR to RGB for Streamlit
                     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     st_frame.image(frame_rgb, channels="RGB", use_container_width=True)
+
                     
                     # Slight delay to prevent flooding if local
                     # time.sleep(0.01) 

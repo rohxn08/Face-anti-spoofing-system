@@ -138,8 +138,21 @@ def handle_realtime_voting(model_key, is_real_frame, bbox):
         
     return label, color
 
+import base64
 
-def handle_cnn_prediction(predictor, image, is_live: bool):
+# ... (imports) ...
+
+def encode_image_base64(img_array):
+    """Encodes a numpy image (BGR) to a base64 string."""
+    try:
+        _, buffer = cv2.imencode('.jpg', img_array)
+        img_str = base64.b64encode(buffer).decode('utf-8')
+        return img_str
+    except Exception as e:
+        print(f"Base64 Encoding Error: {e}")
+        return None
+
+def handle_cnn_prediction(predictor, image, is_live: bool, explain: bool = False):
     """
     Specific handler for CNN predictions.
     """
@@ -147,9 +160,16 @@ def handle_cnn_prediction(predictor, image, is_live: bool):
     params = {'is_live': False} 
     
     try:
-        # Get RAW single-frame prediction from class
-        # (It ignores is_live=False so it returns raw frame result)
-        label_raw, color_raw, bbox = predictor.predict(image, **params)
+        gradcam_b64 = None
+        
+        if explain:
+             # USE NEW METHOD
+             label_raw, color_raw, bbox, heatmap_img = predictor.predict_with_heatmap(image, is_live=False)
+             if heatmap_img is not None:
+                 gradcam_b64 = encode_image_base64(heatmap_img)
+        else:
+            # STANDARD METHOD
+            label_raw, color_raw, bbox = predictor.predict(image, **params)
         
         if is_live:
             # Parse the RAW label to get boolean Class
@@ -158,18 +178,19 @@ def handle_cnn_prediction(predictor, image, is_live: bool):
             
             # Use our API-level Voting Mechanism
             label, color = handle_realtime_voting("cnn", is_real_frame, bbox)
-            return label, color, bbox
+            return label, color, bbox, gradcam_b64
         else:
             # Static Mode: Return Raw
-            return label_raw, color_raw, bbox
+            return label_raw, color_raw, bbox, gradcam_b64
             
     except Exception as e:
         print(f"CNN Error: {e}")
         raise e
 
-def handle_svm_prediction(predictor, image, is_live: bool):
+def handle_svm_prediction(predictor, image, is_live: bool, explain: bool = False):
     """
     Specific handler for SVM predictions.
+    SVM does not support GradCAM currently.
     """
     params = {'is_live': False}
     
@@ -179,9 +200,9 @@ def handle_svm_prediction(predictor, image, is_live: bool):
         if is_live:
             is_real_frame = "REAL" in label_raw
             label, color = handle_realtime_voting("svm", is_real_frame, bbox)
-            return label, color, bbox
+            return label, color, bbox, None
         else:
-            return label_raw, color_raw, bbox
+            return label_raw, color_raw, bbox, None
             
     except Exception as e:
         print(f"SVM Error: {e}")
@@ -193,7 +214,8 @@ def handle_svm_prediction(predictor, image, is_live: bool):
 async def predict_image(
     file: UploadFile = File(...),
     model_name: str = Form("cnn"),
-    is_live: bool = Form(False)
+    is_live: bool = Form(False),
+    explain: bool = Form(False)
 ):
     """
     Predicts if the face in the image is Real or Spoof.
@@ -218,10 +240,11 @@ async def predict_image(
         
     # ROUTING LOGIC
     try:
+        gradcam_image = None
         if model_key == 'cnn':
-            label, color, bbox = handle_cnn_prediction(predictor, image, is_live)
+            label, color, bbox, gradcam_image = handle_cnn_prediction(predictor, image, is_live, explain)
         elif model_key == 'svm':
-            label, color, bbox = handle_svm_prediction(predictor, image, is_live)
+            label, color, bbox, gradcam_image = handle_svm_prediction(predictor, image, is_live, explain)
         else:
             # Fallback
             label, color, bbox = predictor.predict(image, is_live=is_live)
@@ -239,7 +262,8 @@ async def predict_image(
     return {
         "label": label,
         "color": color, # Tuple (G, B, R)
-        "bbox": bbox    # Tuple (x, y, w, h) or None
+        "bbox": bbox,    # Tuple (x, y, w, h) or None
+        "gradcam_image": gradcam_image # Base64 String or None
     }
 
 @app.post("/reset_history")

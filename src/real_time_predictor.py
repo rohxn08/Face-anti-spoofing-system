@@ -257,6 +257,57 @@ class RealTimePredictor:
             print(f"Prediction Error: {e}")
             return "Error", (0, 255, 255), bbox
 
+    # --- GRAD-CAM EXPLAINABILITY ---
+    def predict_with_heatmap(self, frame, is_live=False):
+        """
+        Returns standard prediction PLUS a verified Grad-CAM overlay image.
+        Only works for CNN.
+        """
+        from src.gradcam import GradCAM # Lazy import
+
+        # 1. Standard Predict first to get Label/BBox
+        label, color, bbox = self.predict(frame, is_live=is_live)
+        
+        if self.model_type != 'cnn' or bbox is None:
+            return label, color, bbox, None
+
+        try:
+            # Initialize Explainer Lazy
+            if not hasattr(self, 'explainer'):
+                self.explainer = GradCAM(self.model)
+
+            # 2. Re-Prepare image for Grad-CAM
+            face, _ = preprocess_face(frame, target_size=(224,224))
+            if face is None: return label, color, bbox, None
+            
+            face_rgb = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+            img_array = img_to_array(face_rgb)
+            img_array = np.expand_dims(img_array, axis=0)
+            img_array = preprocess_input(img_array) 
+
+            # 3. Generate Heatmap via External Module
+            heatmap = self.explainer.compute_heatmap(img_array)
+            
+            if heatmap is None:
+                return label, color, bbox, None
+
+            # 4. Colorize Heatmap
+            heatmap = np.uint8(255 * heatmap)
+            heatmap = cv2.resize(heatmap, (224, 224)) # Ensure 224x224
+            
+            # Application of ColorMap
+            heatmap_colored = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+            
+            # Create Superimposed Image (Overlay)
+            # face is BGR, heatmap_colored is BGR. Both 224x224.
+            superimposed_img = cv2.addWeighted(face, 0.6, heatmap_colored, 0.4, 0)
+            
+            return label, color, bbox, superimposed_img
+            
+        except Exception as e:
+            print(f"Grad-CAM Failed: {e}")
+            return label, color, bbox, None
+
 # --- STANDALONE TEST SUPPORT ---
 if __name__ == "__main__":
     # If run directly, default to CNN and webcam loop
