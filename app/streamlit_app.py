@@ -31,8 +31,6 @@ st.markdown("""
         --border-color: #333;
         --text-primary: #FFFFFF;
         --text-secondary: #B3B3B3;
-        --pill-bg: #222;
-        --pill-border: #444;
     }
 
     /* GLOBAL RESET */
@@ -77,32 +75,6 @@ st.markdown("""
         letter-spacing: 1px;
         margin-top: 5px;
     }
-
-    /* PILL BUTTONS (Top Right - "More Like This", "Save", "Design") style from image */
-    .pill-container {
-        display: flex;
-        gap: 10px;
-    }
-    .pill-btn {
-        background-color: transparent;
-        border: 1px solid var(--pill-border);
-        color: var(--text-primary);
-        padding: 8px 16px;
-        border-radius: 50px;
-        font-family: 'Inter', sans-serif;
-        font-size: 0.85rem;
-        font-weight: 500;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.3s ease;
-    }
-    .pill-btn:hover {
-        background-color: var(--text-primary);
-        color: black;
-        border-color: white;
-    }
     
     /* CONTROL PANEL */
     .control-panel {
@@ -119,7 +91,8 @@ st.markdown("""
     .loading-bar { height: 100%; background: linear-gradient(90deg, #666, #fff, #666); width: 0%; }
     .anim-active { animation: loadAnim 2s infinite ease-in-out; }
 
-    /* CUSTOM RUN BUTTON (Wide, Styled like Pill/Badge) */
+    /* CUSTOM ACTION BUTTONS (Including Architecture Toggles) */
+    /* Only target specific stButton instances if possible, or general override */
     .stButton > button {
         background-color: transparent;
         border: 1px solid #666;
@@ -127,19 +100,78 @@ st.markdown("""
         font-family: 'Syne', sans-serif;
         font-weight: 700;
         font-size: 1rem;
-        border-radius: 50px; /* Fully rounded pill shape */
+        border-radius: 50px;
         padding: 12px 30px;
         width: 100%;
         text-transform: uppercase;
         letter-spacing: 2px;
         transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    /* HOVER ANIMATION (Sliding Background) */
+    .stButton > button::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: white;
+        transition: all 0.4s ease;
+        z-index: -1;
+    }
+    .stButton > button:hover::before {
+        left: 0;
     }
     .stButton > button:hover {
-        background-color: white;
         color: black;
         border-color: white;
         box-shadow: 0 0 15px rgba(255,255,255,0.3);
     }
+    
+    /* CUSTOM RADIO BUTTONS AS PILLS (Architecture) */
+    div[role="radiogroup"] {
+        display: flex;
+        gap: 10px;
+        flex-direction: row; 
+    }
+    
+    /* Hide Default Radio Circles */
+    div[role="radiogroup"] label > div:first-child {
+        display: none;
+    }
+    
+    /* Style the labels to look like buttons */
+    div[role="radiogroup"] label {
+        background-color: transparent;
+        border: 1px solid #444;
+        color: #888;
+        padding: 8px 20px;
+        border-radius: 50px;
+        font-family: 'Syne', sans-serif;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-align: center;
+        flex: 1;
+        display: flex;
+        justify-content: center;
+    }
+    
+    /* Selected State (Streamlit uses data-checked='true' on input, but usually applied to parent div logic is tricky in CSS only. 
+       We will rely on simple overrides or Python logic. Streamlit adds 'st-eb' class to active items sometimes.)
+       Actually, standard Streamlit radio is hard to style perfectly as custom buttons without 'st-click-detector' component. 
+       However, we can style the container generically.
+    */
+    
+    /* Forced CSS Hack for Radio Selection: 
+       We cannot easily detect 'checked' state of parent label in pure CSS for Streamlit.
+       Instead, we will use streamlit columns with plain buttons for Architecture to match the animation perfectly 
+       since the user asked for "same animation... for cnn and svm".
+    */
 
     /* TABS */
     .stTabs [data-baseweb="tab-list"] { gap: 20px; background-color: transparent; border-bottom: 1px solid #333; margin-bottom: 20px; }
@@ -156,6 +188,8 @@ st.markdown("""
 # --- STATE ---
 if 'is_loading' not in st.session_state:
     st.session_state['is_loading'] = False
+if 'model_arch' not in st.session_state:
+    st.session_state['model_arch'] = 'cnn' # Default
 
 # --- API HELPERS ---
 @st.cache_resource(ttl=5) 
@@ -186,31 +220,15 @@ def reset_backend_history(model_name):
     except: pass
 
 
-# --- HEADER ROW (Title Left, Pill Buttons Right) ---
-# We use columns to place title on far left and buttons on far right
-h_col1, h_col2 = st.columns([3, 1.5])
-
-with h_col1:
-    st.markdown("""
+# --- HEADER ---
+st.markdown("""
+<div class="header-container">
     <div>
         <div class="brand-title">VeriFace</div>
         <div class="brand-subtitle">Your one stop verifier</div>
     </div>
-    """, unsafe_allow_html=True)
-
-with h_col2:
-    # Mimicking the top-right button group from the reference (UI&UX, NEOP COMPANY, 2024 styled pills)
-    st.markdown("""
-    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
-        <div class="pill-btn">UI&UX</div>
-        <div class="pill-btn">SECURE</div>
-        <div class="pill-btn">2026</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-# Divider
-st.markdown("<div style='height:1px; background-color:#333; margin: 20px 0;'></div>", unsafe_allow_html=True)
-
+</div>
+""", unsafe_allow_html=True)
 
 # --- MAIN LAYOUT ---
 app_col, ctrl_col = st.columns([3, 1])
@@ -227,14 +245,26 @@ with ctrl_col:
     status_col = "#4CAF50" if is_online else "#FF5252"
     st.markdown(f"<div style='color:{status_col}; font-size:0.8rem; font-weight:bold; margin-bottom:20px;'>● {'SYSTEM ONLINE' if is_online else 'SYSTEM OFFLINE'}</div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='font-family:Syne; font-weight:600; margin-bottom:5px;'>ARCHITECTURE</div>", unsafe_allow_html=True)
-    model_mode = st.radio("Arch", ("CNN", "SVM"), label_visibility="collapsed", key="model_select")
-    model_key = 'cnn' if model_mode == "CNN" else 'svm'
+    st.markdown("<div style='font-family:Syne; font-weight:600; margin-bottom:10px;'>ARCHITECTURE</div>", unsafe_allow_html=True)
     
+    # Custom Buttons for Architecture to support Animation
+    # Using columns to place them side-by-side
+    arc_c1, arc_c2 = st.columns(2)
+    with arc_c1:
+        if st.button("CNN", key="btn_cnn", use_container_width=True):
+            st.session_state['model_arch'] = 'cnn'
+    with arc_c2:
+        if st.button("SVM", key="btn_svm", use_container_width=True):
+            st.session_state['model_arch'] = 'svm'
+            
+    # Active indicator
+    current_arch = st.session_state['model_arch']
+    st.markdown(f"<div style='text-align:center; font-size:0.8rem; color:#888; margin-top:5px;'>Active: <b style='color:#fff;'>{current_arch.upper()}</b></div>", unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
 
     enable_gradcam = False
-    if model_key == 'cnn':
+    if current_arch == 'cnn':
         st.markdown("<div style='font-family:Syne; font-weight:600; margin-bottom:5px;'>EXPLAINABILITY</div>", unsafe_allow_html=True)
         enable_gradcam = st.checkbox("Enable GradCAM")
     
@@ -248,13 +278,9 @@ with app_col:
     with tab_static:
         uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
         
-        # Big Pill styled "Browse Files" or similar area is default Streamlit, 
-        # but we style our own ACTION BUTTON below it.
-        
         analyze_btn = False
         if uploaded_file:
             st.markdown("<br>", unsafe_allow_html=True)
-            # This button will pick up the "pill shape" CSS defined above
             analyze_btn = st.button("RUN VERIFICATION", use_container_width=True)
         else:
              st.markdown("""
@@ -263,7 +289,6 @@ with app_col:
                 <br><span style="font-size:0.8rem;">Limit 200MB per file • JPG, PNG, JPEG</span>
             </div>
             """, unsafe_allow_html=True)
-
 
         # LOGIC & RESULTS
         if analyze_btn:
@@ -275,7 +300,7 @@ with app_col:
                 time.sleep(0.8) # Anim delay
                 img_pil = Image.open(uploaded_file)
                 img_bgr = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
-                label, color, bbox, gc_b64 = predict_frame(img_bgr, model_key, False, enable_gradcam)
+                label, color, bbox, gc_b64 = predict_frame(img_bgr, current_arch, False, enable_gradcam)
                 st.session_state['last_result'] = {'label': label, 'color': color, 'bbox': bbox, 'gc_b64': gc_b64, 'img_pil': img_pil, 'img_np': np.array(img_pil)}
              st.session_state['is_loading'] = False
              st.rerun()
@@ -309,20 +334,23 @@ with app_col:
 
     with tab_dynamic:
         st.markdown("<br>", unsafe_allow_html=True)
-        if model_key == 'svm':
+        if current_arch == 'svm':
              st.error("Dynamic Mode Unavailable for SVM")
         else:
             run_live = st.checkbox("Active Surveillance", value=False)
             st_frame = st.empty()
             if run_live and is_online:
                 st.session_state['is_loading'] = True
-                reset_backend_history(model_key)
+                # Rerun not needed because loop starts immediately, but we want anim
+                # Since we are inside loop, anim might stick. 
+                # For this specific tool, usually we just loop. 
+                reset_backend_history(current_arch)
                 cap = cv2.VideoCapture(0)
-                st.session_state['is_loading'] = False
+                # st.session_state['is_loading'] = False # If we turn it off, anim stops. Let's keep it on for "Live" status?
                 while run_live:
                     ret, frame = cap.read()
                     if not ret: break
-                    label, color, bbox, _ = predict_frame(frame, model_key, True, False)
+                    label, color, bbox, _ = predict_frame(frame, current_arch, True, False)
                     if bbox:
                         x, y, w, h = bbox
                         cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
@@ -331,3 +359,4 @@ with app_col:
                         cv2.putText(frame, label, (x, y - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
                     st_frame.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), use_container_width=True)
                 cap.release()
+                st.session_state['is_loading'] = False
