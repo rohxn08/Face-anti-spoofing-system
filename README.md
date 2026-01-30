@@ -40,13 +40,6 @@ The primary engine for real-time analysis is a **MobileNetV2-based CNN**, fine-t
     *   **Recall (Real)**: **0.99**
 *   **Key Behavior**: Optimized for identifying general spoofing artifacts like moiré patterns, screen glare, and depth inconsistencies.
 
-#### Performance Visualization (CNN & SVM)
-Below are the Confusion Matrices and ROC Curves generated from the validation on the **CelebA-Spoof** dataset (4,300+ test images).
-
-| Confusion Matrices | ROC Curves |
-| :---: | :---: |
-| ![Confusion Matrix](notebooks/validation_results_celeba/confusion_matrices.png) | ![ROC Curve](notebooks/validation_results_celeba/roc_curve.png) |
-
 ### B. Classical Machine Learning: LBP + SVM
 For purely texture-based analysis on static images, we utilize a classical pipeline trained on the same challenging dataset.
 
