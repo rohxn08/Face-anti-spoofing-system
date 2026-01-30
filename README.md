@@ -35,9 +35,9 @@ The primary engine for real-time analysis is a **MobileNetV2-based CNN**, fine-t
 *   **Input Resolution**: 224x224 RGB
 *   **Architecture**: MobileNetV2 Encoder (Top 20 layers fine-tuned) + Custom Dense Head.
 *   **Performance (CelebA-Spoof Test Set)**:
-    *   **Accuracy**: **~96%**
+    *   **Accuracy**: **~98%**
     *   **Precision (Spoof)**: **1.00** (Perfect Score)
-    *   **Recall (Real)**: **0.99**
+    *   **Recall (Real)**: **0.98**
 *   **Key Behavior**: Optimized for identifying general spoofing artifacts like moiré patterns, screen glare, and depth inconsistencies.
 
 ### B. Classical Machine Learning: LBP + SVM
@@ -46,7 +46,9 @@ For purely texture-based analysis on static images, we utilize a classical pipel
 *   **Feature Extractor**: Local Binary Patterns (LBP) to capture micro-texture details.
 *   **Dimensionality Reduction**: PCA (Principal Component Analysis) to retain 95% variance.
 *   **Classifier**: Support Vector Machine (SVM) with RBF kernel.
-*   **Performance**: Achieves **~94% Accuracy**, specializing in detecting texture anomalies (e.g., printed dot patterns).
+*   **Performance**: Achieves **~97% Accuracy**, specializing in detecting texture anomalies (e.g., printed dot patterns).
+    *   **Precision (Real)**: **0.96**
+    *   **Recall (Real)**: **0.94**
 
 ## 4. Features
 
