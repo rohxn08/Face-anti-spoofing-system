@@ -23,23 +23,37 @@ The application features a polished **Streamlit** interface that supports both h
 
 ## 3. Model Summary
 
-The system employs a dual-model architecture to handle different security scenarios:
+The system employs a dual-model architecture trained and validated on diverse, high-benchmark datasets to ensure robustness against various attack types.
+
+### Dataset Evolution
+*   **Initial Training (NUAA / DetectedFace)**: The models were originally trained on the **NUAA Imposter Database**, a classic benchmark containing real and printed photo attacks.
+*   **Robustness Upgrade (CelebA-Spoof)**: To handle modern "in-the-wild" scenarios, the system was further trained and rigorously validated on the **[CelebA-Spoof Dataset](https://github.com/ZhangYuanhan-AI/CelebA-Spoof)** (Large-scale Face Anti-Spoofing Dataset). This dataset includes diverse lighting, sensors, and attack types including print, replay, and 3D masks.
 
 ### A. Deep Learning: MobileNetV2 CNN
 The primary engine for real-time analysis is a **MobileNetV2-based CNN**, fine-tuned for the binary classification task (Real vs. Spoof).
 
 *   **Input Resolution**: 224x224 RGB
 *   **Architecture**: MobileNetV2 Encoder (Top 20 layers fine-tuned) + Custom Dense Head.
-*   **Performance**: Achieves **~96% Accuracy** on the test set.
+*   **Performance (CelebA-Spoof Test Set)**:
+    *   **Accuracy**: **~96%**
+    *   **Precision (Spoof)**: **1.00** (Perfect Score)
+    *   **Recall (Real)**: **0.99**
 *   **Key Behavior**: Optimized for identifying general spoofing artifacts like moiré patterns, screen glare, and depth inconsistencies.
 
+#### Performance Visualization (CNN & SVM)
+Below are the Confusion Matrices and ROC Curves generated from the validation on the **CelebA-Spoof** dataset (4,300+ test images).
+
+| Confusion Matrices | ROC Curves |
+| :---: | :---: |
+| ![Confusion Matrix](notebooks/validation_results_celeba/confusion_matrices.png) | ![ROC Curve](notebooks/validation_results_celeba/roc_curve.png) |
+
 ### B. Classical Machine Learning: LBP + SVM
-For purely texture-based analysis on static images, we utilize a classical pipeline.
+For purely texture-based analysis on static images, we utilize a classical pipeline trained on the same challenging dataset.
 
 *   **Feature Extractor**: Local Binary Patterns (LBP) to capture micro-texture details.
 *   **Dimensionality Reduction**: PCA (Principal Component Analysis) to retain 95% variance.
 *   **Classifier**: Support Vector Machine (SVM) with RBF kernel.
-*   **Performance**: Achieves **~90% Accuracy**, specializing in detecting texture anomalies (e.g., printed dot patterns).
+*   **Performance**: Achieves **~94% Accuracy**, specializing in detecting texture anomalies (e.g., printed dot patterns).
 
 ## 4. Features
 
