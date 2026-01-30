@@ -22,54 +22,33 @@ class GradCAM:
                     print(f"[GradCAM++] Found Target Layer: {layer.name}")
                     return layer.name
         # Fallback to user suggestion if not found
-        return "mobilenetv2_1.00_224"
+        # 'out_relu' is the last conv layer in standard unpacked MobileNetV2
+        return "out_relu"
 
     def build_gradcam_model(self):
         """
-        Reconstructs a Functional Model to bypass nested model graph issues.
-        Maps: New Input -> [Backbone Output, Final Output]
+        Creates a new Keras Model that outputs:
+        [Target Layer Output, Final Prediction]
+        It uses the *existing* graph tensors, avoiding manual reconstruction errors.
         """
         try:
-            # 1. Create Input
-            # Note: We assume standard 224x224x3 input for this CNN
-            inputs = tf.keras.Input(shape=(224, 224, 3))
-            
-            # 2. Trace the graph
-            # We assume structure: Lambda -> Backbone -> GlobalAvg -> ...
-            x = inputs
-            
-            # Find the index of the backbone
+            # 1. Get the actual layer object
             target_layer = self.model.get_layer(self.layerName)
-            backbone_index = self.model.layers.index(target_layer)
             
-            # Apply layers UP TO backbone (inclusive) to get conv_output
-            # Usually: Input is implicit. Layer 0 is Preprocess (Lambda).
-            # But we must act carefully.
-            # If we call self.model.layers[0](x), it works.
+            # 2. Get the output tensor of that layer
+            conv_output = target_layer.output
             
-            conv_output = None
+            # 3. Get the final output tensor of the model
+            final_output = self.model.output
             
-            # Re-run layers from start to backbone
-            for i in range(backbone_index + 1):
-                layer = self.model.layers[i]
-                # Skip InputLayer if present in list (rare in loaded models list)
-                if isinstance(layer, tf.keras.layers.InputLayer):
-                    continue
-                x = layer(x)
-                if i == backbone_index:
-                    conv_output = x
-            
-            # Continue from backbone+1 to end to get predictions
-            for i in range(backbone_index + 1, len(self.model.layers)):
-                layer = self.model.layers[i]
-                x = layer(x)
-            
-            outputs = x
-            
-            return tf.keras.Model(inputs=inputs, outputs=[conv_output, outputs])
+            # 4. Create the new Multi-Output model sharing the same inputs
+            return tf.keras.models.Model(
+                inputs=self.model.inputs, 
+                outputs=[conv_output, final_output]
+            )
             
         except Exception as e:
-            print(f"[GradCAM++] Model Rebuild Failed: {e}")
+            print(f"[GradCAM++] Model Tap Failed: {e}")
             return None
 
     def compute_heatmap(self, image, eps=1e-8):
