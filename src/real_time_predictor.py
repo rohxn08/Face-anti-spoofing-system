@@ -74,31 +74,13 @@ class RealTimePredictor:
                 raise FileNotFoundError(f"CRITICAL: Model file missing at {cnn_path}")
 
             try:
-                print("DEBUG: Reconstructing model architecture and loading weights...")
+                # Direct Load (Robust method for .keras files)
+                print("DEBUG: Loading CNN model via load_model...")
                 
-                from tensorflow.keras.models import Model
-                from tensorflow.keras.layers import Input, GlobalAveragePooling2D, Dropout, Dense, Lambda
-                from tensorflow.keras.applications.mobilenet_v2 import preprocess_input, MobileNetV2
+                custom_objects = {'preprocess_input': preprocess_input}
+                self.model = load_model(cnn_path, custom_objects=custom_objects)
                 
-                # 1. Re-define the EXACT architecture (functional API)
-                inputs = Input(shape=(224, 224, 3))
-                x = Lambda(preprocess_input)(inputs)
-                
-                # Load MobileNetV2 without weights (we load them later)
-                base_model = MobileNetV2(include_top=False, weights=None, input_shape=(224, 224, 3))
-                x = base_model(x)
-                
-                x = GlobalAveragePooling2D()(x)
-                x = Dropout(0.5)(x)
-                x = Dense(64, activation="relu")(x)
-                x = Dropout(0.5)(x)
-                outputs = Dense(1, activation='sigmoid')(x)
-                
-                self.model = Model(inputs, outputs)
-                
-                # 2. Load weights
-                self.model.load_weights(cnn_path)
-                print("✅ CNN Model Loaded Successfully (Weights Only Mode)")
+                print("✅ CNN Model Loaded Successfully (Standard Load)")
             except Exception as e:
                 print(f"❌ Critical Error loading CNN: {e}")
                 import traceback
@@ -184,24 +166,38 @@ class RealTimePredictor:
                 # 4. PCA
                 feat_pca = self.pca.transform(feat_scaled)
                 
-                # 5. Predict
-                prediction = self.model.predict(feat_pca)[0] 
+                # 5. Predict (Custom Logic with Thresholds)
+                prob_real = 0.5 # Default
                 
-                # Mapping: 0=Real, 1=Spoof (Confirmed in train_svm.py)
-                is_real_frame = (prediction == 0)
-                
-                # Confidence
-                if hasattr(self.model, "predict_proba"):
-                    probs = self.model.predict_proba(feat_pca)[0]
-                    raw_score = probs[0] if is_real_frame else probs[1]
-                elif hasattr(self.model, "decision_function"):
+                if hasattr(self.model, "decision_function"):
+                    # Distance from hyperplane
                     score = self.model.decision_function(feat_pca)[0]
-                    raw_score = 1 / (1 + np.exp(-score)) 
-                    if not is_real_frame: raw_score = 1 - raw_score
+                    # Sigmoid -> Probability of Class 1 (Real in our inverted logic)
+                    prob_real = 1 / (1 + np.exp(-score))
+                elif hasattr(self.model, "predict_proba"):
+                    prob_real = self.model.predict_proba(feat_pca)[0][1]
                 else:
-                    raw_score = 1.0
+                    # Fallback if no probability available (LinearSVC might not have it enabled)
+                    prob_real = 1.0 if (self.model.predict(feat_pca)[0] == 1) else 0.0
+
+                # --- DECISION LOGIC ---
+                if is_live:
+                    # Live Mode: Strict (Threshold 0.5)
+                    is_real_frame = (prob_real > 0.5)
+                else:
+                    # Static Mode: Extremely Lenient (Threshold 0.10)
+                    # Digital photos often have very low texture scores (smooth skin filters, compression).
+                    # We allow anything with >10% "Realness" to pass to be user-friendly.
+                    is_real_frame = (prob_real > 0.10)
+
+                # --- SCORE DISPLAY ---
+                # Show confidence of the WINNING class
+                if is_real_frame:
+                    raw_score = prob_real
+                else:
+                    raw_score = 1.0 - prob_real
                 
-                print(f"DEBUG [SVM]: Pred={prediction} (Real={is_real_frame}) Conf={raw_score:.2f}")
+                print(f"DEBUG [SVM]: ProbReal={prob_real:.4f} (Real={is_real_frame}) Conf={raw_score:.2f}")
 
             elif self.model_type == 'cnn':
                 # --- CNN LOGIC ---
@@ -213,19 +209,21 @@ class RealTimePredictor:
                 cnn_score = self.model.predict(img, verbose=0)[0][0]
                 
                 # Logic branching based on deployment mode
+                # Logic branching based on deployment mode
                 if is_live:
-                    # LIVE MODE: Inverted Logic (Based on observed behavior)
-                    # Score > 0.5 means REAL
-                    if cnn_score > 0.5:
+                    # LIVE MODE: Standard Logic for Retrained Model (0=Real, 1=Spoof)
+                    # If score is LOW (< 0.5), it is Class 0 (Real)
+                    if cnn_score < 0.5:
                         is_real_frame = True
-                        raw_score = cnn_score
+                        raw_score = 1.0 - cnn_score
                     else:
                         is_real_frame = False
-                        raw_score = 1.0 - cnn_score
+                        raw_score = cnn_score
                 else:
-                    # STATIC MODE: Standard Logic
-                    # Score < 0.5 means REAL (Class 0)
-                    if cnn_score < 0.5:
+                    # STATIC MODE: Lenient Threshold for Digital Uploads
+                    # Digital photos lack sensor noise and often score higher on Spoof probability.
+                    # We relax the threshold to 0.90 to allow high-res real selfies to pass.
+                    if cnn_score < 0.90:
                         is_real_frame = True
                         raw_score = 1.0 - cnn_score
                     else:
