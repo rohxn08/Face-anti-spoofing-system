@@ -41,7 +41,7 @@ class RealTimePredictor:
         if self.model_type == 'svm':
             try:
                 # User provided Dictionary Artifacts
-                svm_path = os.path.join(self.base_path, 'svm_texture_pipeline.pkl')
+                svm_path = os.path.join(self.base_path, 'face_antispoof_svm.pkl')
                 
                 if not os.path.exists(svm_path):
                     raise FileNotFoundError(f"SVM pipeline not found at {svm_path}")
