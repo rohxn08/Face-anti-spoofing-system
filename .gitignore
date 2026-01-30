@@ -19,6 +19,7 @@ venv/
 /data/processed/      # ignore only processed images
 !/data/msu_mfsd/      # track raw dataset
 /data/Detectedface/   # ignore new dataset
+/data/CelebA_Spoof/
 
 # Models (ignore weights/checkpoints)
 /models/weights/
