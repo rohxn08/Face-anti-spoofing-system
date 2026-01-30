@@ -36,7 +36,7 @@ The primary engine for real-time analysis is a **MobileNetV2-based CNN**, fine-t
 *   **Architecture**: MobileNetV2 Encoder (Top 20 layers fine-tuned) + Custom Dense Head.
 *   **Performance (CelebA-Spoof Test Set)**:
     *   **Accuracy**: **~98%**
-    *   **Precision (Spoof)**: **1.00** (Perfect Score)
+    *   **Precision (Spoof)**: **97%**
     *   **Recall (Real)**: **0.98**
 *   **Key Behavior**: Optimized for identifying general spoofing artifacts like moiré patterns, screen glare, and depth inconsistencies.
 
