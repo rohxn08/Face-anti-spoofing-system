@@ -64,3 +64,4 @@ desktop.ini
 *.tmp
 /data/Detectedface/   
 /eval_and_track/datasets/
+/mlartifacts
